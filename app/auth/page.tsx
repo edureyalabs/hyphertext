@@ -4,17 +4,14 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/lib/supabase';
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Sparkles } from 'lucide-react';
 
 function AuthContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         router.replace('/dashboard');
@@ -23,7 +20,6 @@ function AuthContent() {
       }
     });
 
-    // Listen for successful sign-ins
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         router.replace('/dashboard');
@@ -35,101 +31,195 @@ function AuthContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <motion.div
-          animate={{ 
-            scale: [1, 1.2, 1],
-            rotate: [0, 180, 360]
-          }}
-          transition={{ 
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        >
-          <Image 
-            src="/logo.png" 
-            alt="GarliQ" 
-            width={60} 
-            height={60}
-          />
-        </motion.div>
+      <div style={{
+        minHeight: '100vh',
+        background: '#f8f7f4',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <div style={{
+          width: '20px',
+          height: '20px',
+          border: '1.5px solid #ddd',
+          borderTopColor: '#111',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Subtle Grid Background */}
-      <div className="fixed inset-0 bg-black">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1a1a1a_1px,transparent_1px),linear-gradient(to_bottom,#1a1a1a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
-      </div>
+    <div style={{
+      minHeight: '100vh',
+      background: '#f8f7f4',
+      fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
+      color: '#111',
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&display=swap');
 
-      {/* Back to Home Link */}
-      <div className="relative z-10 p-6">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          Back to home
+        * { box-sizing: border-box; }
+        ::selection { background: #111; color: #f8f7f4; }
+
+        /* Override Supabase Auth UI styles */
+        [data-supabase-auth-ui] button[type="submit"],
+        .sbui-btn-primary,
+        form button[type="submit"] {
+          background: #111 !important;
+          color: #f8f7f4 !important;
+          border: none !important;
+          border-radius: 3px !important;
+          font-family: 'DM Sans', sans-serif !important;
+          font-weight: 400 !important;
+          font-size: 0.875rem !important;
+          letter-spacing: 0.02em !important;
+          padding: 0.7rem 1rem !important;
+          transition: background 0.15s !important;
+          box-shadow: none !important;
+        }
+
+        form button[type="submit"]:hover {
+          background: #222 !important;
+        }
+
+        form input[type="email"],
+        form input[type="password"],
+        form input[type="text"] {
+          background: #fff !important;
+          border: 1px solid #ddd !important;
+          border-radius: 3px !important;
+          color: #111 !important;
+          font-family: 'DM Sans', sans-serif !important;
+          font-size: 0.875rem !important;
+          padding: 0.65rem 0.85rem !important;
+          transition: border-color 0.15s !important;
+          box-shadow: none !important;
+          outline: none !important;
+        }
+
+        form input:focus {
+          border-color: #0047AB !important;
+          box-shadow: none !important;
+        }
+
+        form label {
+          font-family: 'DM Sans', sans-serif !important;
+          font-size: 0.78rem !important;
+          font-weight: 400 !important;
+          color: #555 !important;
+          letter-spacing: 0.02em !important;
+        }
+
+        form a, .auth-anchor {
+          color: #0047AB !important;
+          font-size: 0.8rem !important;
+          text-decoration: none !important;
+          font-family: 'DM Sans', sans-serif !important;
+        }
+
+        form a:hover { text-decoration: underline !important; }
+
+        form p {
+          font-family: 'DM Mono', monospace !important;
+          font-size: 0.75rem !important;
+          color: #999 !important;
+        }
+
+        /* Remove any default card backgrounds from Auth UI */
+        [data-supabase-auth-ui] > div {
+          background: transparent !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+        }
+      `}</style>
+
+      {/* Nav */}
+      <nav style={{
+        padding: '0 2rem',
+        height: '56px',
+        display: 'flex',
+        alignItems: 'center',
+        borderBottom: '1px solid #e8e6e1',
+      }}>
+        <Link href="/" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.6rem',
+          textDecoration: 'none',
+        }}>
+          <Image src="/logo.png" alt="Hyphertext" width={28} height={28} style={{ borderRadius: '50%' }} />
+          <span style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.85rem',
+            color: '#111',
+            letterSpacing: '0.01em',
+          }}>
+            hyphertext
+          </span>
         </Link>
-      </div>
+      </nav>
 
-      {/* Auth Container */}
-      <div className="relative z-10 flex items-start justify-center px-6 pt-4">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full max-w-md"
-        >
+      {/* Auth container */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '5rem 2rem',
+        minHeight: 'calc(100vh - 56px)',
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '360px',
+          animation: 'fadeIn 0.5s ease both',
+        }}>
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; transform: translateY(10px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
+
           {/* Header */}
-          <div className="text-center mb-4">
-            <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="mb-2 flex justify-center"
-            >
-              <Image 
-                src="/logo.png" 
-                alt="GarliQ" 
-                width={40} 
-                height={40}
-                className="drop-shadow-2xl"
-              />
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-            >
-              <h1 className="text-2xl font-bold mb-1">
-                Welcome to GarliQ
-              </h1>
-              <p className="text-gray-400 text-xs">
-                Start your AI-powered learning journey
-              </p>
-            </motion.div>
-
-            {/* Trial Badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
-              className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-full text-xs"
-            >
-              <Sparkles className="w-3 h-3 text-purple-400" />
-              <span className="text-purple-400 font-semibold">7-day free trial • 500K tokens</span>
-            </motion.div>
+          <div style={{ marginBottom: '2.5rem' }}>
+            <p style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: '0.72rem',
+              color: '#aaa',
+              letterSpacing: '0.06em',
+              marginBottom: '0.75rem',
+              textTransform: 'uppercase',
+            }}>
+              hyphertext.com
+            </p>
+            <h1 style={{
+              fontSize: '1.6rem',
+              fontWeight: 300,
+              letterSpacing: '-0.025em',
+              margin: '0 0 0.5rem',
+              lineHeight: 1.2,
+            }}>
+              Welcome back.
+            </h1>
+            <p style={{
+              fontSize: '0.875rem',
+              color: '#888',
+              fontWeight: 300,
+              margin: 0,
+            }}>
+              Sign in to build and publish HTML pages instantly.
+            </p>
           </div>
 
-          {/* Auth Form Container */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
-            className="bg-black/40 backdrop-blur-sm border border-gray-800 rounded-xl p-6"
-          >
+          {/* Auth form card */}
+          <div style={{
+            background: '#fff',
+            border: '1px solid #e8e6e1',
+            borderRadius: '6px',
+            padding: '2rem',
+          }}>
             <Auth
               supabaseClient={supabase}
               appearance={{
@@ -137,102 +227,66 @@ function AuthContent() {
                 variables: {
                   default: {
                     colors: {
-                      brand: '#9333ea',
-                      brandAccent: '#a855f7',
-                      inputBackground: 'rgba(0, 0, 0, 0.3)',
-                      inputBorder: 'rgba(75, 85, 99, 1)',
-                      inputBorderHover: 'rgba(156, 163, 175, 1)',
-                      inputBorderFocus: 'rgba(147, 51, 234, 1)',
-                      inputText: 'white',
-                      inputLabelText: 'rgba(209, 213, 219, 1)',
-                      inputPlaceholder: 'rgba(107, 114, 128, 1)',
+                      brand: '#111',
+                      brandAccent: '#333',
+                      inputBackground: '#fff',
+                      inputBorder: '#ddd',
+                      inputBorderHover: '#999',
+                      inputBorderFocus: '#0047AB',
+                      inputText: '#111',
+                      inputLabelText: '#555',
+                      inputPlaceholder: '#bbb',
+                      messageText: '#555',
+                      anchorTextColor: '#0047AB',
+                      anchorTextHoverColor: '#0035a0',
                     },
                     space: {
-                      spaceSmall: '6px',
-                      spaceMedium: '8px',
-                      spaceLarge: '10px',
+                      spaceSmall: '8px',
+                      spaceMedium: '12px',
+                      spaceLarge: '16px',
                     },
                     fontSizes: {
-                      baseBodySize: '13px',
-                      baseInputSize: '13px',
+                      baseBodySize: '14px',
+                      baseInputSize: '14px',
                       baseLabelSize: '12px',
-                      baseButtonSize: '13px',
+                      baseButtonSize: '14px',
                     },
                     radii: {
-                      borderRadiusButton: '6px',
-                      buttonBorderRadius: '6px',
-                      inputBorderRadius: '6px',
+                      borderRadiusButton: '3px',
+                      buttonBorderRadius: '3px',
+                      inputBorderRadius: '3px',
+                    },
+                    fonts: {
+                      bodyFontFamily: `'DM Sans', sans-serif`,
+                      buttonFontFamily: `'DM Sans', sans-serif`,
+                      inputFontFamily: `'DM Sans', sans-serif`,
+                      labelFontFamily: `'DM Sans', sans-serif`,
                     },
                   },
-                },
-                className: {
-                  container: 'auth-container',
-                  button: 'auth-button',
-                  input: 'auth-input',
-                  label: 'auth-label',
-                  anchor: 'text-purple-400 hover:text-purple-300 transition-colors',
                 },
               }}
               providers={[]}
               view="sign_in"
               showLinks={true}
-              theme="dark"
             />
+          </div>
 
-            {/* Additional Info */}
-            <div className="mt-4 pt-4 border-t border-gray-800">
-              <p className="text-[10px] text-center text-gray-500 leading-relaxed">
-                By signing up, you agree to our{' '}
-                <Link href="/terms" className="text-purple-400 hover:text-purple-300 transition-colors">
-                  Terms of Service
-                </Link>{' '}
-                and{' '}
-                <Link href="/privacy-policy" className="text-purple-400 hover:text-purple-300 transition-colors">
-                  Privacy Policy
-                </Link>
-              </p>
-            </div>
-          </motion.div>
-        </motion.div>
+          {/* Footer note */}
+          <p style={{
+            marginTop: '1.5rem',
+            fontSize: '0.75rem',
+            color: '#bbb',
+            textAlign: 'center',
+            fontWeight: 300,
+            lineHeight: 1.6,
+          }}>
+            By continuing, you agree to our{' '}
+            <Link href="/terms" style={{ color: '#888', textDecoration: 'underline' }}>Terms</Link>
+            {' '}and{' '}
+            <Link href="/privacy" style={{ color: '#888', textDecoration: 'underline' }}>Privacy Policy</Link>
+          </p>
+        </div>
       </div>
-
-      {/* Custom Styles for Supabase Auth UI */}
-      <style jsx global>{`
-        .auth-container {
-          width: 100%;
-        }
-        
-        .auth-button {
-          background: white !important;
-          color: black !important;
-          font-weight: 600 !important;
-          transition: all 0.2s !important;
-        }
-        
-        .auth-button:hover {
-          background: rgba(229, 229, 229, 1) !important;
-        }
-        
-        .auth-input {
-          background: rgba(0, 0, 0, 0.3) !important;
-          border: 1px solid rgba(75, 85, 99, 1) !important;
-          color: white !important;
-        }
-        
-        .auth-input:hover {
-          border-color: rgba(156, 163, 175, 1) !important;
-        }
-        
-        .auth-input:focus {
-          border-color: rgba(147, 51, 234, 1) !important;
-          box-shadow: 0 0 0 1px rgba(147, 51, 234, 0.5) !important;
-        }
-        
-        .auth-label {
-          color: rgba(209, 213, 219, 1) !important;
-          font-weight: 500 !important;
-        }
-      `}</style>
     </div>
   );
 }
@@ -240,25 +294,22 @@ function AuthContent() {
 export default function AuthPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <motion.div
-          animate={{ 
-            scale: [1, 1.2, 1],
-            rotate: [0, 180, 360]
-          }}
-          transition={{ 
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        >
-          <Image 
-            src="/logo.png" 
-            alt="GarliQ" 
-            width={60} 
-            height={60}
-          />
-        </motion.div>
+      <div style={{
+        minHeight: '100vh',
+        background: '#f8f7f4',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <div style={{
+          width: '20px',
+          height: '20px',
+          border: '1.5px solid #ddd',
+          borderTopColor: '#111',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     }>
       <AuthContent />

@@ -2,8 +2,8 @@
 import { useState, useEffect, Suspense } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Lock, Check, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
 
 function ResetPasswordContent() {
   const router = useRouter();
@@ -15,13 +15,10 @@ function ResetPasswordContent() {
   const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
-    // Check if user has a valid recovery session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        console.log('✅ Recovery session found');
         setHasSession(true);
       } else {
-        console.error('❌ No session - invalid or expired link');
         setError('Invalid or expired reset link. Please request a new one.');
       }
     });
@@ -32,146 +29,226 @@ function ResetPasswordContent() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Passwords do not match.');
       return;
     }
-
     if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError('Password must be at least 6 characters.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password
-      });
-
+      const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) {
         setError(updateError.message);
         setLoading(false);
       } else {
-        console.log('✅ Password updated successfully');
         setSuccess(true);
-        
-        // Sign out and redirect to login
         setTimeout(async () => {
           await supabase.auth.signOut();
           router.push('/auth');
-        }, 2000);
+        }, 2500);
       }
-    } catch (err) {
-      setError('An error occurred while updating password');
+    } catch {
+      setError('An error occurred while updating your password.');
       setLoading(false);
     }
   };
 
-  if (!hasSession && error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 flex items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center max-w-md"
-        >
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-          <p className="text-red-700 font-semibold mb-4">{error}</p>
-          <button
-            onClick={() => router.push('/auth')}
-            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-bold"
-          >
-            Back to Login
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 flex items-center justify-center p-6">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl p-8 w-full max-w-md"
-      >
-        <div className="text-center mb-8">
-          <div className="text-6xl mb-4">🧄</div>
-          <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">
-            Reset Password
-          </h1>
-          <p className="text-gray-600 mt-2">Enter your new password</p>
+    <div style={{
+      minHeight: '100vh',
+      background: '#f8f7f4',
+      fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
+      color: '#111',
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400&family=DM+Mono:wght@300;400&display=swap');
+        * { box-sizing: border-box; }
+        ::selection { background: #111; color: #f8f7f4; }
+
+        .field-input {
+          width: 100%;
+          background: #fff;
+          border: 1px solid #ddd;
+          border-radius: 3px;
+          color: #111;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.875rem;
+          padding: 0.65rem 0.85rem;
+          transition: border-color 0.15s;
+          outline: none;
+        }
+        .field-input:focus { border-color: #0047AB; }
+
+        .submit-btn {
+          width: 100%;
+          background: #111;
+          color: #f8f7f4;
+          border: none;
+          padding: 0.7rem 1rem;
+          font-size: 0.875rem;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 400;
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          border-radius: 3px;
+          transition: background 0.15s;
+        }
+        .submit-btn:hover:not(:disabled) { background: #222; }
+        .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* Nav */}
+      <nav style={{
+        padding: '0 2rem',
+        height: '56px',
+        display: 'flex',
+        alignItems: 'center',
+        borderBottom: '1px solid #e8e6e1',
+      }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', textDecoration: 'none' }}>
+          <Image src="/logo.png" alt="Hyphertext" width={28} height={28} style={{ borderRadius: '50%' }} />
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.85rem', color: '#111' }}>
+            hyphertext
+          </span>
+        </Link>
+      </nav>
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '5rem 2rem',
+        minHeight: 'calc(100vh - 56px)',
+      }}>
+        <div style={{ width: '100%', maxWidth: '360px', animation: 'fadeIn 0.5s ease both' }}>
+
+          {/* Invalid session state */}
+          {!hasSession && error ? (
+            <>
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#aaa', letterSpacing: '0.06em', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
+                error
+              </p>
+              <h1 style={{ fontSize: '1.6rem', fontWeight: 300, letterSpacing: '-0.025em', margin: '0 0 0.5rem' }}>
+                Link expired.
+              </h1>
+              <p style={{ fontSize: '0.875rem', color: '#888', fontWeight: 300, margin: '0 0 2rem', lineHeight: 1.6 }}>
+                This password reset link is no longer valid.
+              </p>
+              <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: '#e05252', margin: 0, lineHeight: 1.6 }}>
+                  {error}
+                </p>
+              </div>
+              <button onClick={() => router.push('/auth')} className="submit-btn">
+                Request a new link
+              </button>
+            </>
+          ) : success ? (
+            /* Success state */
+            <>
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#aaa', letterSpacing: '0.06em', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
+                done
+              </p>
+              <h1 style={{ fontSize: '1.6rem', fontWeight: 300, letterSpacing: '-0.025em', margin: '0 0 0.5rem' }}>
+                Password updated.
+              </h1>
+              <p style={{ fontSize: '0.875rem', color: '#888', fontWeight: 300, margin: '0 0 2rem', lineHeight: 1.6 }}>
+                Redirecting you to sign in...
+              </p>
+              <div style={{
+                height: '2px',
+                background: '#e8e6e1',
+                borderRadius: '2px',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: '100%',
+                  background: '#0047AB',
+                  animation: 'progress 2.5s linear forwards',
+                }} />
+              </div>
+              <style>{`
+                @keyframes progress { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+              `}</style>
+            </>
+          ) : (
+            /* Form state */
+            <>
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#aaa', letterSpacing: '0.06em', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
+                reset password
+              </p>
+              <h1 style={{ fontSize: '1.6rem', fontWeight: 300, letterSpacing: '-0.025em', margin: '0 0 0.5rem' }}>
+                Choose a new password.
+              </h1>
+              <p style={{ fontSize: '0.875rem', color: '#888', fontWeight: 300, margin: '0 0 2rem', lineHeight: 1.6 }}>
+                Must be at least 6 characters.
+              </p>
+
+              <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '2rem' }}>
+                <form onSubmit={handleReset}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', color: '#555', marginBottom: '0.4rem', letterSpacing: '0.02em' }}>
+                      New password
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="field-input"
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', color: '#555', marginBottom: '0.4rem', letterSpacing: '0.02em' }}>
+                      Confirm password
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="field-input"
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  {error && (
+                    <div style={{
+                      background: '#fff5f5',
+                      border: '1px solid #fcc',
+                      borderRadius: '3px',
+                      padding: '0.75rem',
+                      marginBottom: '1rem',
+                    }}>
+                      <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', color: '#e05252', margin: 0, lineHeight: 1.5 }}>
+                        {error}
+                      </p>
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={loading || !hasSession} className="submit-btn">
+                    {loading ? 'Updating...' : 'Update password'}
+                  </button>
+                </form>
+              </div>
+            </>
+          )}
         </div>
-
-        {success ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center"
-          >
-            <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
-            <p className="text-green-700 font-semibold">Password updated!</p>
-            <p className="text-green-600 text-sm mt-2">Redirecting to login...</p>
-          </motion.div>
-        ) : (
-          <form onSubmit={handleReset} className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                New Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                  placeholder="Enter new password"
-                  required
-                  minLength={6}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500"
-                  placeholder="Confirm new password"
-                  required
-                  minLength={6}
-                />
-              </div>
-            </div>
-
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-2"
-              >
-                <AlertCircle className="text-red-500" size={20} />
-                <p className="text-red-700 text-sm">{error}</p>
-              </motion.div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || !hasSession}
-              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-xl font-bold disabled:opacity-50"
-            >
-              {loading ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
-        )}
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -179,8 +256,22 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 flex items-center justify-center">
-        <div className="text-6xl animate-bounce">🧄</div>
+      <div style={{
+        minHeight: '100vh',
+        background: '#f8f7f4',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <div style={{
+          width: '20px',
+          height: '20px',
+          border: '1.5px solid #ddd',
+          borderTopColor: '#111',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     }>
       <ResetPasswordContent />
