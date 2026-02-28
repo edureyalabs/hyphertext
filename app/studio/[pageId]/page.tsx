@@ -18,6 +18,7 @@ const AVAILABLE_MODELS = [
 ];
 
 const DEFAULT_MODEL = 'groq/llama-3.3-70b';
+const AGENT_TIMEOUT_MS = 90000; // 90 seconds
 
 interface ChatMessage {
   id: string;
@@ -69,6 +70,24 @@ export default function StudioPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const agentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear timeout helper
+  const clearAgentTimeout = useCallback(() => {
+    if (agentTimeoutRef.current) {
+      clearTimeout(agentTimeoutRef.current);
+      agentTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Start timeout safety net
+  const startAgentTimeout = useCallback(() => {
+    clearAgentTimeout();
+    agentTimeoutRef.current = setTimeout(() => {
+      setIsAgentRunning(false);
+      agentTimeoutRef.current = null;
+    }, AGENT_TIMEOUT_MS);
+  }, [clearAgentTimeout]);
 
   useEffect(() => {
     const init = async () => {
@@ -111,7 +130,10 @@ export default function StudioPage() {
       setLoading(false);
     };
     init();
-  }, [pageId, router]);
+
+    // Cleanup timeout on unmount
+    return () => clearAgentTimeout();
+  }, [pageId, router, clearAgentTimeout]);
 
   useEffect(() => {
     if (!pageId) return;
@@ -152,6 +174,7 @@ export default function StudioPage() {
           setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
           if (updatedMsg.status === 'completed' || updatedMsg.status === 'error') {
             setIsAgentRunning(false);
+            clearAgentTimeout();
           }
         }
       })
@@ -161,7 +184,7 @@ export default function StudioPage() {
       supabase.removeChannel(pageChannel);
       supabase.removeChannel(chatChannel);
     };
-  }, [pageId]);
+  }, [pageId, clearAgentTimeout]);
 
   useEffect(() => {
     if (!page?.html_content || !iframeRef.current || viewMode === 'code') return;
@@ -188,6 +211,7 @@ export default function StudioPage() {
     const text = input.trim();
     setInput('');
     setIsAgentRunning(true);
+    startAgentTimeout();
 
     if (awaitingClarification) {
       setAwaitingClarification(false);
@@ -199,29 +223,28 @@ export default function StudioPage() {
     }
 
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      setIsAgentRunning(false);
+      clearAgentTimeout();
+      return;
+    }
 
-    const { data: insertedMsg } = await supabase.from('chat_messages').insert({
+    // Insert message with model_id — DB trigger handles the rest
+    const { error } = await supabase.from('chat_messages').insert({
       page_id: pageId,
       role: 'user',
       content: text,
       status: 'pending',
       message_type: 'chat',
+      model_id: selectedModel,
       meta: {}
-    }).select().single();
-
-    if (!insertedMsg) return;
-
-    await fetch(`${process.env.NEXT_PUBLIC_AGENT_URL}/agent/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message_id: insertedMsg.id,
-        page_id: pageId,
-        content: text,
-        model_id: selectedModel
-      })
     });
+
+    if (error) {
+      console.error('Failed to insert message:', error);
+      setIsAgentRunning(false);
+      clearAgentTimeout();
+    }
   };
 
   const handlePublish = async () => {
@@ -522,6 +545,7 @@ export default function StudioPage() {
         .modal-delete-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       `}</style>
 
+      {/* NAV */}
       <nav style={{ height: '48px', background: '#fff', borderBottom: '1px solid #e8e6e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', flexShrink: 0, gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
           <Link href="/dashboard/projects" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', flexShrink: 0 }}>
@@ -569,8 +593,10 @@ export default function StudioPage() {
         </div>
       </nav>
 
+      {/* MAIN */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
+        {/* PREVIEW PANEL */}
         <div style={{ flex: '0 0 80%', borderRight: '1px solid #e8e6e1', background: viewMode === 'code' ? '#1e1e1e' : '#e8e6e1', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {viewMode === 'preview' && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'stretch' }}>
@@ -605,6 +631,7 @@ export default function StudioPage() {
           )}
         </div>
 
+        {/* CHAT PANEL */}
         <div style={{ flex: '0 0 20%', display: 'flex', flexDirection: 'column', background: '#fff', minWidth: '260px', maxWidth: '380px' }}>
 
           <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -639,6 +666,7 @@ export default function StudioPage() {
             <div ref={chatBottomRef} />
           </div>
 
+          {/* INPUT AREA */}
           <div style={{ padding: '0.75rem', borderTop: '1px solid #f0ede8', flexShrink: 0 }}>
             {!modelLocked && (
               <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -694,6 +722,7 @@ export default function StudioPage() {
         </div>
       </div>
 
+      {/* DELETE MODAL */}
       {showDeleteModal && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteModal(false); }}>
           <div className="modal">
