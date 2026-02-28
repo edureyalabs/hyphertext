@@ -39,6 +39,8 @@ export default function StudioPage() {
   const [publishing, setPublishing] = useState(false);
   const [publishCopied, setPublishCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -75,7 +77,6 @@ export default function StudioPage() {
   useEffect(() => {
     if (!pageId) return;
 
-    // Watch html_content changes → update iframe live
     const pageChannel = supabase
       .channel(`page-${pageId}`)
       .on('postgres_changes', {
@@ -89,7 +90,6 @@ export default function StudioPage() {
       })
       .subscribe();
 
-    // Watch chat messages → update chat window live
     const chatChannel = supabase
       .channel(`chat-${pageId}`)
       .on('postgres_changes', {
@@ -101,7 +101,6 @@ export default function StudioPage() {
         if (payload.eventType === 'INSERT') {
           const newMsg = payload.new as ChatMessage;
           setMessages(prev => {
-            // avoid duplicates
             if (prev.find(m => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
@@ -109,7 +108,6 @@ export default function StudioPage() {
         if (payload.eventType === 'UPDATE') {
           const updatedMsg = payload.new as ChatMessage;
           setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
-          // If a message transitions to completed/error, agent is done
           if (updatedMsg.status === 'completed' || updatedMsg.status === 'error') {
             setIsAgentRunning(false);
           }
@@ -149,7 +147,6 @@ export default function StudioPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
-    // Insert user message → DB trigger fires → edge function → backend
     await supabase.from('chat_messages').insert({
       page_id: pageId,
       role: 'user',
@@ -168,7 +165,6 @@ export default function StudioPage() {
     setPage(prev => prev ? { ...prev, is_published: newState } : prev);
 
     if (newState) {
-      // Copy link to clipboard
       const link = `${window.location.origin}/p/${pageId}`;
       await navigator.clipboard.writeText(link);
       setPublishCopied(true);
@@ -176,6 +172,19 @@ export default function StudioPage() {
     }
 
     setPublishing(false);
+  };
+
+  // ── Delete page ──────────────────────────────────────────
+  const handleDelete = async () => {
+    setDeleting(true);
+    const { error } = await supabase.from('pages').delete().eq('id', pageId);
+    if (error) {
+      console.error('Delete error:', error.message);
+      setDeleting(false);
+      setShowDeleteModal(false);
+      return;
+    }
+    router.replace('/dashboard/projects');
   };
 
   // ── Textarea auto-resize ─────────────────────────────────
@@ -207,6 +216,7 @@ export default function StudioPage() {
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
         @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+        @keyframes modalIn { from { opacity:0; transform:scale(0.97) translateY(4px); } to { opacity:1; transform:scale(1) translateY(0); } }
 
         .tab-btn {
           background: transparent; border: none;
@@ -239,6 +249,16 @@ export default function StudioPage() {
         .publish-btn:hover { border-color: #999; color: #111; }
         .publish-btn.live { border-color: #2a9d5c; color: #2a9d5c; background: rgba(42,157,92,0.06); }
         .publish-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .delete-btn {
+          display: inline-flex; align-items: center; gap: 0.4rem;
+          background: transparent; border: 1px solid #ddd;
+          padding: 0.38rem 0.75rem; font-size: 0.78rem;
+          font-family: 'DM Sans', sans-serif; font-weight: 400;
+          color: #bbb; cursor: pointer; border-radius: 3px;
+          transition: all 0.15s;
+        }
+        .delete-btn:hover { border-color: #e57373; color: #e57373; background: rgba(229,115,115,0.05); }
 
         .chat-msg {
           animation: fadeUp 0.2s ease both;
@@ -276,6 +296,38 @@ export default function StudioPage() {
           overflow-y: auto;
         }
         .chat-input::placeholder { color: #bbb; }
+
+        .modal-overlay {
+          position: fixed; inset: 0;
+          background: rgba(0,0,0,0.35);
+          backdrop-filter: blur(4px);
+          z-index: 1000;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .modal {
+          background: #fff; border: 1px solid #e8e6e1;
+          border-radius: 8px; padding: 2rem;
+          width: 100%; max-width: 380px;
+          animation: modalIn 0.2s ease both;
+          box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+        }
+        .modal-cancel-btn {
+          background: transparent; border: 1px solid #ddd;
+          color: #777; padding: 0.55rem 1rem;
+          border-radius: 3px; font-size: 0.82rem;
+          cursor: pointer; font-family: 'DM Sans', sans-serif;
+          transition: border-color 0.15s;
+        }
+        .modal-cancel-btn:hover { border-color: #999; color: #111; }
+        .modal-delete-confirm-btn {
+          background: #c0392b; border: none; color: #fff;
+          padding: 0.55rem 1.1rem; border-radius: 3px;
+          font-size: 0.82rem; cursor: pointer;
+          font-family: 'DM Sans', sans-serif; font-weight: 400;
+          transition: background 0.15s;
+        }
+        .modal-delete-confirm-btn:hover { background: #a93226; }
+        .modal-delete-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       `}</style>
 
       {/* ── TOP NAV ── */}
@@ -306,13 +358,19 @@ export default function StudioPage() {
           ))}
         </div>
 
-        {/* Right: publish */}
+        {/* Right: delete + publish */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
           {page?.is_published && (
             <a href={publishUrl} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#2a9d5c', textDecoration: 'none', borderBottom: '1px solid currentColor', lineHeight: 1 }}>
               {publishUrl.replace('https://', '')}
             </a>
           )}
+          <button className="delete-btn" onClick={() => setShowDeleteModal(true)} title="Delete page">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M1 3.5H13M5.5 3.5V2.5C5.5 2 5.5 1.5 6.5 1.5H7.5C8.5 1.5 8.5 2 8.5 2.5V3.5M6 6V10.5M8 6V10.5M2.5 3.5L3 11.5C3 12 3.5 12.5 4 12.5H10C10.5 12.5 11 12 11 11.5L11.5 3.5H2.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Delete
+          </button>
           <button
             className={`publish-btn${page?.is_published ? ' live' : ''}`}
             onClick={handlePublish}
@@ -347,7 +405,6 @@ export default function StudioPage() {
           {viewMode === 'mobile' && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: '#e0ddd8' }}>
               <div style={{ width: '375px', height: '812px', maxHeight: '90%', background: '#fff', borderRadius: '40px', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(0,0,0,0.1)', position: 'relative' }}>
-                {/* notch */}
                 <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120px', height: '28px', background: '#111', borderRadius: '0 0 20px 20px', zIndex: 10 }} />
                 <iframe
                   style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
@@ -382,12 +439,10 @@ export default function StudioPage() {
         {/* ── RIGHT: CHAT PANEL (20%) ── */}
         <div style={{ flex: '0 0 20%', display: 'flex', flexDirection: 'column', background: '#fff', minWidth: '260px', maxWidth: '380px' }}>
 
-          {/* Chat header */}
           <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0 }}>
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#bbb', letterSpacing: '0.05em', textTransform: 'uppercase', margin: 0 }}>chat</p>
           </div>
 
-          {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
             {messages.length === 0 && (
@@ -412,7 +467,6 @@ export default function StudioPage() {
               </div>
             ))}
 
-            {/* Processing indicator — shown when agent is running but no reply yet */}
             {isAgentRunning && messages[messages.length - 1]?.role === 'user' && (
               <div style={{ display: 'flex', alignItems: 'flex-start' }}>
                 <div className="assistant-msg chat-msg" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -426,7 +480,6 @@ export default function StudioPage() {
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Input area */}
           <div style={{ padding: '0.75rem', borderTop: '1px solid #f0ede8', flexShrink: 0 }}>
             <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', alignItems: 'flex-end', gap: '0.5rem', transition: 'border-color 0.15s' }}>
               <textarea
@@ -460,6 +513,29 @@ export default function StudioPage() {
           </div>
         </div>
       </div>
+
+      {/* ── DELETE CONFIRM MODAL ── */}
+      {showDeleteModal && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteModal(false); }}>
+          <div className="modal">
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#e57373', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>delete page</p>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 400, letterSpacing: '-0.02em', color: '#111', margin: '0 0 0.5rem' }}>
+              Delete "{page?.title}"?
+            </h2>
+            <p style={{ fontSize: '0.83rem', color: '#999', fontWeight: 300, margin: '0 0 1.5rem', lineHeight: 1.6 }}>
+              This will permanently delete the page and all its chat history. This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button className="modal-cancel-btn" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
+                Cancel
+              </button>
+              <button className="modal-delete-confirm-btn" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Deleting...' : 'Yes, delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
