@@ -5,8 +5,10 @@ import { supabase } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import loadingAnimationData from '@/public/loader.json';
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
+const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 
 type ViewMode = 'preview' | 'mobile' | 'code';
 
@@ -66,6 +68,7 @@ export default function StudioPage() {
   const [modelLocked, setModelLocked] = useState(false);
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
   const [awaitingClarification, setAwaitingClarification] = useState(false);
+  const [hasEverSentMessage, setHasEverSentMessage] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -122,9 +125,15 @@ export default function StudioPage() {
         setModelLocked(true);
       }
 
-      const hasPendingClarification = msgList.some(
-        (m: ChatMessage) => m.message_type === 'clarification' && m.meta?.awaiting_clarification === true
-      );
+      // If there are any messages at all, show the persistent animation
+      if (msgList.length > 0) {
+        setHasEverSentMessage(true);
+      }
+
+      const lastMsg = msgList[msgList.length - 1];
+      const hasPendingClarification =
+        lastMsg?.message_type === 'clarification' &&
+        lastMsg?.meta?.awaiting_clarification === true;
       setAwaitingClarification(hasPendingClarification);
 
       setLoading(false);
@@ -211,6 +220,7 @@ export default function StudioPage() {
     const text = input.trim();
     setInput('');
     setIsAgentRunning(true);
+    setHasEverSentMessage(true);
     startAgentTimeout();
 
     if (awaitingClarification) {
@@ -294,30 +304,19 @@ export default function StudioPage() {
             background: '#f8f7f4',
             border: '1px solid #e8e6e1',
             borderRadius: '8px',
-            padding: '0.45rem 0.75rem',
+            padding: '0.3rem 0.7rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.4rem',
+            gap: '0.3rem',
             fontFamily: "'DM Mono', monospace",
             fontSize: '0.68rem',
-            color: '#888',
+            color: '#aaa',
             transition: 'background 0.12s'
           }}
         >
-          <span style={{ fontSize: '0.6rem', opacity: 0.6 }}>{isExpanded ? '▼' : '▶'}</span>
+          <span style={{ fontSize: '0.55rem', opacity: 0.5 }}>{isExpanded ? '▼' : '▶'}</span>
           thinking
-          {plan.complexity && (
-            <span style={{
-              background: plan.complexity === 'complex' ? '#fef3c7' : plan.complexity === 'moderate' ? '#ede9fe' : '#f0fdf4',
-              color: plan.complexity === 'complex' ? '#92400e' : plan.complexity === 'moderate' ? '#5b21b6' : '#166534',
-              padding: '0.1rem 0.4rem',
-              borderRadius: '100px',
-              fontSize: '0.62rem'
-            }}>
-              {plan.complexity}
-            </span>
-          )}
         </button>
         {isExpanded && (
           <div style={{
@@ -332,11 +331,6 @@ export default function StudioPage() {
             {plan.description && (
               <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#333', fontWeight: 400, lineHeight: 1.5 }}>
                 {plan.description}
-              </p>
-            )}
-            {plan.decision && (
-              <p style={{ margin: '0 0 0.5rem', fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#888' }}>
-                mode: <span style={{ color: plan.decision === 'full_rewrite' ? '#dc2626' : '#2563eb' }}>{plan.decision}</span>
               </p>
             )}
             {plan.changes && plan.changes.length > 0 && (
@@ -376,13 +370,6 @@ export default function StudioPage() {
       <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
         <div className={`chat-msg ${msg.role === 'user' ? 'user-msg' : 'assistant-msg'}`}>
           {msg.content}
-          {msg.status === 'processing' && (
-            <div style={{ display: 'flex', gap: '4px', marginTop: '0.5rem', alignItems: 'center' }}>
-              {[0, 0.2, 0.4].map((delay, i) => (
-                <div key={i} className="thinking-dot" style={{ animationDelay: `${delay}s` }} />
-              ))}
-            </div>
-          )}
         </div>
       </div>
     );
@@ -476,12 +463,6 @@ export default function StudioPage() {
           font-size: 0.82rem; font-weight: 300;
         }
 
-        .thinking-dot {
-          width: 5px; height: 5px; border-radius: 50%;
-          background: #bbb; display: inline-block;
-          animation: pulse 1.2s ease infinite;
-        }
-
         .chat-input {
           flex: 1; border: none; outline: none; resize: none;
           background: transparent; font-family: 'DM Sans', sans-serif;
@@ -543,6 +524,8 @@ export default function StudioPage() {
         }
         .modal-delete-confirm-btn:hover { background: #a93226; }
         .modal-delete-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
       `}</style>
 
       {/* NAV */}
@@ -646,6 +629,7 @@ export default function StudioPage() {
             )}
           </div>
 
+          {/* MESSAGES */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {messages.length === 0 && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.5rem' }}>
@@ -654,15 +638,35 @@ export default function StudioPage() {
               </div>
             )}
             {messages.map(msg => renderMessage(msg))}
-            {isAgentRunning && messages[messages.length - 1]?.role === 'user' && (
-              <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                <div className="assistant-msg chat-msg" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  {[0, 0.2, 0.4].map((delay, i) => (
-                    <div key={i} className="thinking-dot" style={{ animationDelay: `${delay}s` }} />
-                  ))}
+
+            {/* PERSISTENT INDICATOR — image when idle, animation when running */}
+            {hasEverSentMessage && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                paddingTop: '0.25rem',
+              }}>
+                <div>
+                  {isAgentRunning ? (
+                    <Lottie
+                      animationData={loadingAnimationData}
+                      loop={true}
+                      style={{ width: '72px', height: '72px' }}
+                    />
+                  ) : (
+                    <Image
+                      src="/loader.png"
+                      alt="idle"
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  )}
                 </div>
               </div>
             )}
+
             <div ref={chatBottomRef} />
           </div>
 
