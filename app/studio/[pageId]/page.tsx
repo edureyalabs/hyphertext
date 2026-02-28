@@ -6,16 +6,26 @@ import Image from 'next/image';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
-// Monaco editor — load client side only
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
 type ViewMode = 'preview' | 'mobile' | 'code';
+
+const AVAILABLE_MODELS = [
+  { id: 'groq/llama-3.3-70b', label: 'Llama 3.3 70B', provider: 'Groq' },
+  { id: 'groq/llama-3.1-8b', label: 'Llama 3.1 8B', provider: 'Groq' },
+  { id: 'claude/claude-sonnet-4-5', label: 'Claude Sonnet', provider: 'Anthropic' },
+  { id: 'claude/claude-haiku-4-5', label: 'Claude Haiku', provider: 'Anthropic' },
+];
+
+const DEFAULT_MODEL = 'groq/llama-3.3-70b';
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
+  message_type: string;
+  meta: Record<string, any>;
   created_at: string;
 }
 
@@ -24,6 +34,16 @@ interface Page {
   title: string;
   html_content: string;
   is_published: boolean;
+}
+
+function getStoredModel(pageId: string): string {
+  if (typeof window === 'undefined') return DEFAULT_MODEL;
+  return localStorage.getItem(`model:${pageId}`) || DEFAULT_MODEL;
+}
+
+function storeModel(pageId: string, modelId: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(`model:${pageId}`, modelId);
 }
 
 export default function StudioPage() {
@@ -41,12 +61,15 @@ export default function StudioPage() {
   const [loading, setLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
+  const [modelLocked, setModelLocked] = useState(false);
+  const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
+  const [awaitingClarification, setAwaitingClarification] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── Load initial page data ──────────────────────────────
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -67,13 +90,29 @@ export default function StudioPage() {
         .eq('page_id', pageId)
         .order('created_at', { ascending: true });
 
-      setMessages(msgs || []);
+      const msgList = msgs || [];
+      setMessages(msgList);
+
+      const storedModel = getStoredModel(pageId);
+      setSelectedModel(storedModel);
+
+      const hasCompletedMessages = msgList.some(
+        (m: ChatMessage) => m.role === 'user' && m.status === 'completed'
+      );
+      if (hasCompletedMessages) {
+        setModelLocked(true);
+      }
+
+      const hasPendingClarification = msgList.some(
+        (m: ChatMessage) => m.message_type === 'clarification' && m.meta?.awaiting_clarification === true
+      );
+      setAwaitingClarification(hasPendingClarification);
+
       setLoading(false);
     };
     init();
   }, [pageId, router]);
 
-  // ── Supabase Realtime subscriptions ────────────────────
   useEffect(() => {
     if (!pageId) return;
 
@@ -104,6 +143,9 @@ export default function StudioPage() {
             if (prev.find(m => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
+          if (newMsg.message_type === 'clarification' && newMsg.meta?.awaiting_clarification) {
+            setAwaitingClarification(true);
+          }
         }
         if (payload.eventType === 'UPDATE') {
           const updatedMsg = payload.new as ChatMessage;
@@ -121,7 +163,6 @@ export default function StudioPage() {
     };
   }, [pageId]);
 
-  // ── Update iframe when html_content changes ────────────
   useEffect(() => {
     if (!page?.html_content || !iframeRef.current || viewMode === 'code') return;
     const doc = iframeRef.current.contentDocument;
@@ -132,54 +173,76 @@ export default function StudioPage() {
     }
   }, [page?.html_content, viewMode]);
 
-  // ── Scroll chat to bottom ───────────────────────────────
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── Send message ────────────────────────────────────────
+  const handleModelChange = (modelId: string) => {
+    if (modelLocked) return;
+    setSelectedModel(modelId);
+    storeModel(pageId, modelId);
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || isAgentRunning) return;
     const text = input.trim();
     setInput('');
     setIsAgentRunning(true);
 
+    if (awaitingClarification) {
+      setAwaitingClarification(false);
+    }
+
+    if (!modelLocked) {
+      setModelLocked(true);
+      storeModel(pageId, selectedModel);
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
-    await supabase.from('chat_messages').insert({
+    const { data: insertedMsg } = await supabase.from('chat_messages').insert({
       page_id: pageId,
       role: 'user',
       content: text,
-      status: 'pending'
+      status: 'pending',
+      message_type: 'chat',
+      meta: {}
+    }).select().single();
+
+    if (!insertedMsg) return;
+
+    await fetch(`${process.env.NEXT_PUBLIC_AGENT_URL}/agent/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message_id: insertedMsg.id,
+        page_id: pageId,
+        content: text,
+        model_id: selectedModel
+      })
     });
   };
 
-  // ── Publish / unpublish ──────────────────────────────────
   const handlePublish = async () => {
     if (!page) return;
     setPublishing(true);
-
     const newState = !page.is_published;
     await supabase.from('pages').update({ is_published: newState }).eq('id', pageId);
     setPage(prev => prev ? { ...prev, is_published: newState } : prev);
-
     if (newState) {
       const link = `${window.location.origin}/p/${pageId}`;
       await navigator.clipboard.writeText(link);
       setPublishCopied(true);
       setTimeout(() => setPublishCopied(false), 3000);
     }
-
     setPublishing(false);
   };
 
-  // ── Delete page ──────────────────────────────────────────
   const handleDelete = async () => {
     setDeleting(true);
     const { error } = await supabase.from('pages').delete().eq('id', pageId);
     if (error) {
-      console.error('Delete error:', error.message);
       setDeleting(false);
       setShowDeleteModal(false);
       return;
@@ -187,11 +250,119 @@ export default function StudioPage() {
     router.replace('/dashboard/projects');
   };
 
-  // ── Textarea auto-resize ─────────────────────────────────
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  };
+
+  const toggleThinking = (msgId: string) => {
+    setExpandedThinking(prev => ({ ...prev, [msgId]: !prev[msgId] }));
+  };
+
+  const renderThinkingBlock = (msg: ChatMessage) => {
+    const plan = msg.meta?.plan || {};
+    const isExpanded = expandedThinking[msg.id];
+    return (
+      <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+        <button
+          onClick={() => toggleThinking(msg.id)}
+          style={{
+            background: '#f8f7f4',
+            border: '1px solid #e8e6e1',
+            borderRadius: '8px',
+            padding: '0.45rem 0.75rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.68rem',
+            color: '#888',
+            transition: 'background 0.12s'
+          }}
+        >
+          <span style={{ fontSize: '0.6rem', opacity: 0.6 }}>{isExpanded ? '▼' : '▶'}</span>
+          thinking
+          {plan.complexity && (
+            <span style={{
+              background: plan.complexity === 'complex' ? '#fef3c7' : plan.complexity === 'moderate' ? '#ede9fe' : '#f0fdf4',
+              color: plan.complexity === 'complex' ? '#92400e' : plan.complexity === 'moderate' ? '#5b21b6' : '#166534',
+              padding: '0.1rem 0.4rem',
+              borderRadius: '100px',
+              fontSize: '0.62rem'
+            }}>
+              {plan.complexity}
+            </span>
+          )}
+        </button>
+        {isExpanded && (
+          <div style={{
+            marginTop: '0.4rem',
+            background: '#fafaf9',
+            border: '1px solid #e8e6e1',
+            borderRadius: '6px',
+            padding: '0.75rem',
+            maxWidth: '280px',
+            width: '100%'
+          }}>
+            {plan.description && (
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#333', fontWeight: 400, lineHeight: 1.5 }}>
+                {plan.description}
+              </p>
+            )}
+            {plan.decision && (
+              <p style={{ margin: '0 0 0.5rem', fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#888' }}>
+                mode: <span style={{ color: plan.decision === 'full_rewrite' ? '#dc2626' : '#2563eb' }}>{plan.decision}</span>
+              </p>
+            )}
+            {plan.changes && plan.changes.length > 0 && (
+              <div>
+                <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', textTransform: 'uppercase' }}>changes</p>
+                {plan.changes.map((c: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.25rem', alignItems: 'flex-start' }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', flexShrink: 0, marginTop: '0.1rem' }}>{c.order}.</span>
+                    <span style={{ fontSize: '0.72rem', color: '#555', lineHeight: 1.4 }}>{c.what}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderMessage = (msg: ChatMessage) => {
+    if (msg.message_type === 'thinking') {
+      return renderThinkingBlock(msg);
+    }
+
+    if (msg.message_type === 'clarification') {
+      return (
+        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <div className="chat-msg assistant-msg" style={{ borderLeft: '2px solid #f59e0b' }}>
+            <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#f59e0b', textTransform: 'uppercase' }}>needs clarification</p>
+            {msg.content}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+        <div className={`chat-msg ${msg.role === 'user' ? 'user-msg' : 'assistant-msg'}`}>
+          {msg.content}
+          {msg.status === 'processing' && (
+            <div style={{ display: 'flex', gap: '4px', marginTop: '0.5rem', alignItems: 'center' }}>
+              {[0, 0.2, 0.4].map((delay, i) => (
+                <div key={i} className="thinking-dot" style={{ animationDelay: `${delay}s` }} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -204,6 +375,7 @@ export default function StudioPage() {
   }
 
   const publishUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/p/${pageId}`;
+  const activeModel = AVAILABLE_MODELS.find(m => m.id === selectedModel);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8f7f4', fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", overflow: 'hidden' }}>
@@ -215,7 +387,6 @@ export default function StudioPage() {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
         @keyframes modalIn { from { opacity:0; transform:scale(0.97) translateY(4px); } to { opacity:1; transform:scale(1) translateY(0); } }
 
         .tab-btn {
@@ -297,6 +468,27 @@ export default function StudioPage() {
         }
         .chat-input::placeholder { color: #bbb; }
 
+        .model-select {
+          background: transparent;
+          border: 1px solid #e8e6e1;
+          border-radius: 4px;
+          padding: 0.25rem 0.5rem;
+          font-size: 0.72rem;
+          font-family: 'DM Mono', monospace;
+          color: #888;
+          cursor: pointer;
+          outline: none;
+          transition: border-color 0.15s, color 0.15s;
+          appearance: none;
+          -webkit-appearance: none;
+          padding-right: 1.2rem;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23bbb' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 0.4rem center;
+        }
+        .model-select:hover:not(:disabled) { border-color: #bbb; color: #555; }
+        .model-select:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .modal-overlay {
           position: fixed; inset: 0;
           background: rgba(0,0,0,0.35);
@@ -330,9 +522,7 @@ export default function StudioPage() {
         .modal-delete-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       `}</style>
 
-      {/* ── TOP NAV ── */}
       <nav style={{ height: '48px', background: '#fff', borderBottom: '1px solid #e8e6e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', flexShrink: 0, gap: '1rem' }}>
-        {/* Left: logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
           <Link href="/dashboard/projects" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', flexShrink: 0 }}>
             <Image src="/logo.png" alt="Hyphertext" width={22} height={22} style={{ borderRadius: '50%' }} />
@@ -349,16 +539,14 @@ export default function StudioPage() {
           )}
         </div>
 
-        {/* Center: view tabs */}
         <div style={{ display: 'flex', gap: '0.2rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '5px', padding: '0.2rem' }}>
           {(['preview', 'mobile', 'code'] as ViewMode[]).map(mode => (
             <button key={mode} className={`tab-btn${viewMode === mode ? ' active' : ''}`} onClick={() => setViewMode(mode)}>
-              {mode === 'preview' ? '⬜ desktop' : mode === 'mobile' ? '📱 mobile' : '</> code'}
+              {mode === 'preview' ? 'desktop' : mode === 'mobile' ? 'mobile' : 'code'}
             </button>
           ))}
         </div>
 
-        {/* Right: delete + publish */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
           {page?.is_published && (
             <a href={publishUrl} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#2a9d5c', textDecoration: 'none', borderBottom: '1px solid currentColor', lineHeight: 1 }}>
@@ -371,11 +559,7 @@ export default function StudioPage() {
             </svg>
             Delete
           </button>
-          <button
-            className={`publish-btn${page?.is_published ? ' live' : ''}`}
-            onClick={handlePublish}
-            disabled={publishing}
-          >
+          <button className={`publish-btn${page?.is_published ? ' live' : ''}`} onClick={handlePublish} disabled={publishing}>
             {page?.is_published ? (
               <><span style={{ fontSize: '0.6rem' }}>●</span> {publishCopied ? 'link copied!' : 'live'}</>
             ) : (
@@ -385,37 +569,22 @@ export default function StudioPage() {
         </div>
       </nav>
 
-      {/* ── MAIN BODY ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* ── LEFT: PREVIEW PANEL (80%) ── */}
         <div style={{ flex: '0 0 80%', borderRight: '1px solid #e8e6e1', background: viewMode === 'code' ? '#1e1e1e' : '#e8e6e1', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
           {viewMode === 'preview' && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', padding: '0' }}>
-              <iframe
-                ref={iframeRef}
-                style={{ flex: 1, border: 'none', display: 'block', background: '#fff' }}
-                title="Page preview"
-                sandbox="allow-scripts allow-same-origin"
-              />
+            <div style={{ flex: 1, display: 'flex', alignItems: 'stretch' }}>
+              <iframe ref={iframeRef} style={{ flex: 1, border: 'none', display: 'block', background: '#fff' }} title="Page preview" sandbox="allow-scripts allow-same-origin" />
             </div>
           )}
-
           {viewMode === 'mobile' && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: '#e0ddd8' }}>
               <div style={{ width: '375px', height: '812px', maxHeight: '90%', background: '#fff', borderRadius: '40px', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(0,0,0,0.1)', position: 'relative' }}>
                 <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120px', height: '28px', background: '#111', borderRadius: '0 0 20px 20px', zIndex: 10 }} />
-                <iframe
-                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-                  srcDoc={page?.html_content || ''}
-                  title="Mobile preview"
-                  sandbox="allow-scripts allow-same-origin"
-                />
+                <iframe style={{ width: '100%', height: '100%', border: 'none', display: 'block' }} srcDoc={page?.html_content || ''} title="Mobile preview" sandbox="allow-scripts allow-same-origin" />
               </div>
             </div>
           )}
-
           {viewMode === 'code' && (
             <MonacoEditor
               height="100%"
@@ -436,37 +605,28 @@ export default function StudioPage() {
           )}
         </div>
 
-        {/* ── RIGHT: CHAT PANEL (20%) ── */}
         <div style={{ flex: '0 0 20%', display: 'flex', flexDirection: 'column', background: '#fff', minWidth: '260px', maxWidth: '380px' }}>
 
-          <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0 }}>
+          <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#bbb', letterSpacing: '0.05em', textTransform: 'uppercase', margin: 0 }}>chat</p>
+            {activeModel && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                {modelLocked && <span style={{ fontSize: '0.55rem', color: '#bbb' }}>locked</span>}
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: modelLocked ? '#bbb' : '#888', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '3px', padding: '0.1rem 0.4rem' }}>
+                  {activeModel.label}
+                </span>
+              </div>
+            )}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-
             {messages.length === 0 && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.5rem' }}>
                 <span style={{ fontSize: '1.2rem', opacity: 0.5 }}>✦</span>
                 <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem' }}>describe your page</p>
               </div>
             )}
-
-            {messages.map(msg => (
-              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div className={`chat-msg ${msg.role === 'user' ? 'user-msg' : 'assistant-msg'}`}>
-                  {msg.content}
-                  {msg.status === 'processing' && (
-                    <div style={{ display: 'flex', gap: '4px', marginTop: '0.5rem', alignItems: 'center' }}>
-                      {[0, 0.2, 0.4].map((delay, i) => (
-                        <div key={i} className="thinking-dot" style={{ animationDelay: `${delay}s` }} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
+            {messages.map(msg => renderMessage(msg))}
             {isAgentRunning && messages[messages.length - 1]?.role === 'user' && (
               <div style={{ display: 'flex', alignItems: 'flex-start' }}>
                 <div className="assistant-msg chat-msg" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -476,16 +636,40 @@ export default function StudioPage() {
                 </div>
               </div>
             )}
-
             <div ref={chatBottomRef} />
           </div>
 
           <div style={{ padding: '0.75rem', borderTop: '1px solid #f0ede8', flexShrink: 0 }}>
+            {!modelLocked && (
+              <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb' }}>model</span>
+                <select
+                  className="model-select"
+                  value={selectedModel}
+                  onChange={e => handleModelChange(e.target.value)}
+                  disabled={modelLocked}
+                >
+                  {AVAILABLE_MODELS.map(m => (
+                    <option key={m.id} value={m.id}>{m.provider} / {m.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {awaitingClarification && (
+              <div style={{ marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#f59e0b' }}>answering clarification</span>
+              </div>
+            )}
             <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', alignItems: 'flex-end', gap: '0.5rem', transition: 'border-color 0.15s' }}>
               <textarea
                 ref={textareaRef}
                 className="chat-input"
-                placeholder={isAgentRunning ? 'generating...' : 'describe a change...'}
+                placeholder={
+                  isAgentRunning ? 'generating...' :
+                  awaitingClarification ? 'type your answer...' :
+                  'describe a change...'
+                }
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={e => {
@@ -497,11 +681,7 @@ export default function StudioPage() {
                 disabled={isAgentRunning}
                 rows={1}
               />
-              <button
-                className="send-btn"
-                onClick={sendMessage}
-                disabled={!input.trim() || isAgentRunning}
-              >
+              <button className="send-btn" onClick={sendMessage} disabled={!input.trim() || isAgentRunning}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <path d="M1 13L13 7L1 1V5.5L9 7L1 8.5V13Z" fill="currentColor"/>
                 </svg>
@@ -514,21 +694,16 @@ export default function StudioPage() {
         </div>
       </div>
 
-      {/* ── DELETE CONFIRM MODAL ── */}
       {showDeleteModal && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteModal(false); }}>
           <div className="modal">
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#e57373', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>delete page</p>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 400, letterSpacing: '-0.02em', color: '#111', margin: '0 0 0.5rem' }}>
-              Delete "{page?.title}"?
-            </h2>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 400, letterSpacing: '-0.02em', color: '#111', margin: '0 0 0.5rem' }}>Delete "{page?.title}"?</h2>
             <p style={{ fontSize: '0.83rem', color: '#999', fontWeight: 300, margin: '0 0 1.5rem', lineHeight: 1.6 }}>
               This will permanently delete the page and all its chat history. This action cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-              <button className="modal-cancel-btn" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
-                Cancel
-              </button>
+              <button className="modal-cancel-btn" onClick={() => setShowDeleteModal(false)} disabled={deleting}>Cancel</button>
               <button className="modal-delete-confirm-btn" onClick={handleDelete} disabled={deleting}>
                 {deleting ? 'Deleting...' : 'Yes, delete'}
               </button>
