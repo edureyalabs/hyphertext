@@ -1,16 +1,9 @@
+// app/dashboard/projects/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { listPages, createPage, type Page } from '@/lib/api';
 import { INITIAL_BOILERPLATE } from '@/lib/boilerplate';
-
-interface Page {
-  id: string;
-  title: string;
-  is_published: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -19,58 +12,33 @@ export default function ProjectsPage() {
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   useEffect(() => {
-    fetchPages();
+    listPages().then((data) => {
+      setPages(data);
+      setLoading(false);
+    });
   }, []);
 
-  const fetchPages = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const { data } = await supabase
-      .from('pages')
-      .select('id, title, is_published, created_at, updated_at')
-      .order('updated_at', { ascending: false });
-
-    setPages(data || []);
-    setLoading(false);
-  };
-
   const handleCreate = async () => {
-  if (!newTitle.trim()) return;
-  setCreating(true);
+    if (!newTitle.trim()) return;
+    setCreating(true);
+    setCreateError('');
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+    const { page, error } = await createPage(newTitle.trim(), INITIAL_BOILERPLATE);
+
+    if (error || !page) {
+      setCreateError(error ?? 'Failed to create page. Please try again.');
+      setCreating(false);
+      return;
+    }
+
     setCreating(false);
-    return;
-  }
-
-  // Insert page directly using the auth user id as owner_id
-  // profiles.id = auth.users.id, so no separate lookup needed
-  const { data: page, error } = await supabase
-    .from('pages')
-    .insert({
-      owner_id: session.user.id,
-      title: newTitle.trim(),
-      html_content: INITIAL_BOILERPLATE,
-      is_published: false,
-    })
-    .select()
-    .single();
-
-  if (error || !page) {
-    console.error('Insert error:', error?.message, error?.details, error?.hint);
-    setCreating(false);
-    return;
-  }
-
-  setCreating(false);
-  setShowModal(false);
-  setNewTitle('');
-  router.push(`/studio/${page.id}`);
-};
+    setShowModal(false);
+    setNewTitle('');
+    router.push(`/studio/${page.id}`);
+  };
 
   return (
     <div>
@@ -135,14 +103,15 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {/* Pages grid or empty state */}
       {loading ? (
         <div style={{ color: '#ccc', fontSize: '0.85rem', fontFamily: "'DM Mono', monospace" }}>loading...</div>
       ) : pages.length === 0 ? (
         <div style={{ background: '#fff', border: '1px dashed #e0ddd8', borderRadius: '8px', padding: '5rem 2rem', textAlign: 'center', animation: 'fadeIn 0.5s ease 0.1s both' }}>
           <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#ccc', marginBottom: '0.6rem' }}>no pages yet</p>
           <h2 style={{ fontSize: '1.1rem', fontWeight: 300, letterSpacing: '-0.02em', color: '#444', margin: '0 0 0.4rem' }}>Your canvas is empty.</h2>
-          <p style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 300, margin: '0 0 2rem', lineHeight: 1.6 }}>Create your first page — a resume, an invitation,<br />a landing page, a quiz, anything.</p>
+          <p style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 300, margin: '0 0 2rem', lineHeight: 1.6 }}>
+            Create your first page — a resume, an invitation,<br />a landing page, a quiz, anything.
+          </p>
           <button className="create-btn" onClick={() => setShowModal(true)}>
             <span style={{ fontSize: '1rem', lineHeight: 1 }}>+</span>
             New page
@@ -187,8 +156,11 @@ export default function ProjectsPage() {
               onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setShowModal(false); }}
               autoFocus
             />
+            {createError && (
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#e05252', marginTop: '0.5rem' }}>{createError}</p>
+            )}
             <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: '1px solid #ddd', color: '#777', padding: '0.55rem 1rem', borderRadius: '3px', fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={() => { setShowModal(false); setCreateError(''); }} style={{ background: 'transparent', border: '1px solid #ddd', color: '#777', padding: '0.55rem 1rem', borderRadius: '3px', fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 Cancel
               </button>
               <button className="create-btn" onClick={handleCreate} disabled={!newTitle.trim() || creating}>

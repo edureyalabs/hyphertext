@@ -1,7 +1,20 @@
+// app/studio/[pageId]/page.tsx
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import {
+  getSession,
+  getPage,
+  updatePage,
+  deletePage,
+  getMessages,
+  sendMessage,
+  type Page,
+  type ChatMessage,
+} from '@/lib/api';
+// Supabase realtime is used directly here only — so the browser WebSocket
+// connects to Supabase for live updates. All other data ops go through our API.
+import { createBrowserClient } from '@supabase/ssr';
 import Image from 'next/image';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -20,23 +33,12 @@ const AVAILABLE_MODELS = [
 ];
 
 const DEFAULT_MODEL = 'groq/llama-3.3-70b';
-const AGENT_TIMEOUT_MS = 90000; // 90 seconds
+const AGENT_TIMEOUT_MS = 90000;
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
-  message_type: string;
-  meta: Record<string, any>;
-  created_at: string;
-}
-
-interface Page {
-  id: string;
-  title: string;
-  html_content: string;
-  is_published: boolean;
+// FIX 2: Derive agent running state from DB message statuses.
+// This survives page refreshes — the DB is the source of truth.
+function deriveAgentRunning(msgs: ChatMessage[]): boolean {
+  return msgs.some(m => m.status === 'pending' || m.status === 'processing');
 }
 
 function getStoredModel(pageId: string): string {
@@ -48,6 +50,13 @@ function storeModel(pageId: string, modelId: string) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(`model:${pageId}`, modelId);
 }
+
+// FIX 1: Single browser-level Supabase client — only used for realtime.
+// All other Supabase calls go through our API routes.
+const supabaseRealtime = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function StudioPage() {
   const params = useParams();
@@ -70,12 +79,39 @@ export default function StudioPage() {
   const [awaitingClarification, setAwaitingClarification] = useState(false);
   const [hasEverSentMessage, setHasEverSentMessage] = useState(false);
 
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const agentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear timeout helper
+  // FIX 3: Keep HTML in a ref so the iframe callback always has the latest content
+  const htmlContentRef = useRef<string>('');
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const writeToIframe = useCallback((html: string, iframe: HTMLIFrameElement | null) => {
+    if (!iframe || !html) return;
+    const doc = iframe.contentDocument;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+    }
+  }, []);
+
+  // FIX 3: Ref callback fires the moment the iframe mounts in the DOM
+  const iframeRefCallback = useCallback((iframe: HTMLIFrameElement | null) => {
+    iframeRef.current = iframe;
+    writeToIframe(htmlContentRef.current, iframe);
+  }, [writeToIframe]);
+
+  // FIX 3: When HTML updates, write to already-mounted iframe
+  useEffect(() => {
+    if (!page?.html_content) return;
+    htmlContentRef.current = page.html_content;
+    if (viewMode !== 'code') {
+      writeToIframe(page.html_content, iframeRef.current);
+    }
+  }, [page?.html_content, viewMode, writeToIframe]);
+
   const clearAgentTimeout = useCallback(() => {
     if (agentTimeoutRef.current) {
       clearTimeout(agentTimeoutRef.current);
@@ -83,7 +119,6 @@ export default function StudioPage() {
     }
   }, []);
 
-  // Start timeout safety net
   const startAgentTimeout = useCallback(() => {
     clearAgentTimeout();
     agentTimeoutRef.current = setTimeout(() => {
@@ -94,41 +129,30 @@ export default function StudioPage() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSession();
       if (!session) { router.replace('/auth'); return; }
 
-      const { data: pageData } = await supabase
-        .from('pages')
-        .select('*')
-        .eq('id', pageId)
-        .single();
-
+      const pageData = await getPage(pageId);
       if (!pageData) { router.replace('/dashboard/projects'); return; }
       setPage(pageData);
+      htmlContentRef.current = pageData.html_content;
 
-      const { data: msgs } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('page_id', pageId)
-        .order('created_at', { ascending: true });
-
-      const msgList = msgs || [];
+      const msgList = await getMessages(pageId);
       setMessages(msgList);
 
       const storedModel = getStoredModel(pageId);
       setSelectedModel(storedModel);
 
-      const hasCompletedMessages = msgList.some(
+      const hasCompleted = msgList.some(
         (m: ChatMessage) => m.role === 'user' && m.status === 'completed'
       );
-      if (hasCompletedMessages) {
-        setModelLocked(true);
-      }
+      if (hasCompleted) setModelLocked(true);
+      if (msgList.length > 0) setHasEverSentMessage(true);
 
-      // If there are any messages at all, show the persistent animation
-      if (msgList.length > 0) {
-        setHasEverSentMessage(true);
-      }
+      // FIX 2: Set agent running from DB state, not frontend memory
+      const agentCurrentlyRunning = deriveAgentRunning(msgList);
+      setIsAgentRunning(agentCurrentlyRunning);
+      if (agentCurrentlyRunning) startAgentTimeout();
 
       const lastMsg = msgList[msgList.length - 1];
       const hasPendingClarification =
@@ -139,15 +163,14 @@ export default function StudioPage() {
       setLoading(false);
     };
     init();
-
-    // Cleanup timeout on unmount
     return () => clearAgentTimeout();
-  }, [pageId, router, clearAgentTimeout]);
+  }, [pageId, router, clearAgentTimeout, startAgentTimeout]);
 
+  // FIX 1: Direct Supabase realtime — browser WebSocket to Supabase
   useEffect(() => {
-    if (!pageId) return;
+    if (loading) return;
 
-    const pageChannel = supabase
+    const pageChannel = supabaseRealtime
       .channel(`page-${pageId}`)
       .on('postgres_changes', {
         event: 'UPDATE',
@@ -155,12 +178,11 @@ export default function StudioPage() {
         table: 'pages',
         filter: `id=eq.${pageId}`
       }, (payload) => {
-        const updated = payload.new as Page;
-        setPage(prev => prev ? { ...prev, ...updated } : updated);
+        setPage(prev => prev ? { ...prev, ...(payload.new as Page) } : prev);
       })
       .subscribe();
 
-    const chatChannel = supabase
+    const chatChannel = supabaseRealtime
       .channel(`chat-${pageId}`)
       .on('postgres_changes', {
         event: '*',
@@ -190,20 +212,10 @@ export default function StudioPage() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(pageChannel);
-      supabase.removeChannel(chatChannel);
+      supabaseRealtime.removeChannel(pageChannel);
+      supabaseRealtime.removeChannel(chatChannel);
     };
-  }, [pageId, clearAgentTimeout]);
-
-  useEffect(() => {
-    if (!page?.html_content || !iframeRef.current || viewMode === 'code') return;
-    const doc = iframeRef.current.contentDocument;
-    if (doc) {
-      doc.open();
-      doc.write(page.html_content);
-      doc.close();
-    }
-  }, [page?.html_content, viewMode]);
+  }, [pageId, loading, clearAgentTimeout]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -215,7 +227,7 @@ export default function StudioPage() {
     storeModel(pageId, modelId);
   };
 
-  const sendMessage = async () => {
+  const handleSendMessage = async () => {
     if (!input.trim() || isAgentRunning) return;
     const text = input.trim();
     setInput('');
@@ -223,35 +235,16 @@ export default function StudioPage() {
     setHasEverSentMessage(true);
     startAgentTimeout();
 
-    if (awaitingClarification) {
-      setAwaitingClarification(false);
-    }
+    if (awaitingClarification) setAwaitingClarification(false);
 
     if (!modelLocked) {
       setModelLocked(true);
       storeModel(pageId, selectedModel);
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      setIsAgentRunning(false);
-      clearAgentTimeout();
-      return;
-    }
-
-    // Insert message with model_id — DB trigger handles the rest
-    const { error } = await supabase.from('chat_messages').insert({
-      page_id: pageId,
-      role: 'user',
-      content: text,
-      status: 'pending',
-      message_type: 'chat',
-      model_id: selectedModel,
-      meta: {}
-    });
-
+    const { error } = await sendMessage(pageId, text, selectedModel);
     if (error) {
-      console.error('Failed to insert message:', error);
+      console.error('Failed to send message:', error);
       setIsAgentRunning(false);
       clearAgentTimeout();
     }
@@ -261,25 +254,23 @@ export default function StudioPage() {
     if (!page) return;
     setPublishing(true);
     const newState = !page.is_published;
-    await supabase.from('pages').update({ is_published: newState }).eq('id', pageId);
-    setPage(prev => prev ? { ...prev, is_published: newState } : prev);
-    if (newState) {
-      const link = `${window.location.origin}/p/${pageId}`;
-      await navigator.clipboard.writeText(link);
-      setPublishCopied(true);
-      setTimeout(() => setPublishCopied(false), 3000);
+    const { page: updated } = await updatePage(pageId, { is_published: newState });
+    if (updated) {
+      setPage(prev => prev ? { ...prev, is_published: newState } : prev);
+      if (newState) {
+        const link = `${window.location.origin}/p/${pageId}`;
+        await navigator.clipboard.writeText(link);
+        setPublishCopied(true);
+        setTimeout(() => setPublishCopied(false), 3000);
+      }
     }
     setPublishing(false);
   };
 
   const handleDelete = async () => {
     setDeleting(true);
-    const { error } = await supabase.from('pages').delete().eq('id', pageId);
-    if (error) {
-      setDeleting(false);
-      setShowDeleteModal(false);
-      return;
-    }
+    const { error } = await deletePage(pageId);
+    if (error) { setDeleting(false); setShowDeleteModal(false); return; }
     router.replace('/dashboard/projects');
   };
 
@@ -294,45 +285,17 @@ export default function StudioPage() {
   };
 
   const renderThinkingBlock = (msg: ChatMessage) => {
-    const plan = msg.meta?.plan || {};
+    const plan = msg.meta?.plan as Record<string, any> ?? {};
     const isExpanded = expandedThinking[msg.id];
     return (
       <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-        <button
-          onClick={() => toggleThinking(msg.id)}
-          style={{
-            background: '#f8f7f4',
-            border: '1px solid #e8e6e1',
-            borderRadius: '8px',
-            padding: '0.3rem 0.7rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.3rem',
-            fontFamily: "'DM Mono', monospace",
-            fontSize: '0.68rem',
-            color: '#aaa',
-            transition: 'background 0.12s'
-          }}
-        >
+        <button onClick={() => toggleThinking(msg.id)} style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.3rem 0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#aaa', transition: 'background 0.12s' }}>
           <span style={{ fontSize: '0.55rem', opacity: 0.5 }}>{isExpanded ? '▼' : '▶'}</span>
           thinking
         </button>
         {isExpanded && (
-          <div style={{
-            marginTop: '0.4rem',
-            background: '#fafaf9',
-            border: '1px solid #e8e6e1',
-            borderRadius: '6px',
-            padding: '0.75rem',
-            maxWidth: '280px',
-            width: '100%'
-          }}>
-            {plan.description && (
-              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#333', fontWeight: 400, lineHeight: 1.5 }}>
-                {plan.description}
-              </p>
-            )}
+          <div style={{ marginTop: '0.4rem', background: '#fafaf9', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '0.75rem', maxWidth: '280px', width: '100%' }}>
+            {plan.description && <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#333', fontWeight: 400, lineHeight: 1.5 }}>{plan.description}</p>}
             {plan.changes && plan.changes.length > 0 && (
               <div>
                 <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', textTransform: 'uppercase' }}>changes</p>
@@ -351,10 +314,7 @@ export default function StudioPage() {
   };
 
   const renderMessage = (msg: ChatMessage) => {
-    if (msg.message_type === 'thinking') {
-      return renderThinkingBlock(msg);
-    }
-
+    if (msg.message_type === 'thinking') return renderThinkingBlock(msg);
     if (msg.message_type === 'clarification') {
       return (
         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -365,12 +325,9 @@ export default function StudioPage() {
         </div>
       );
     }
-
     return (
       <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-        <div className={`chat-msg ${msg.role === 'user' ? 'user-msg' : 'assistant-msg'}`}>
-          {msg.content}
-        </div>
+        <div className={`chat-msg ${msg.role === 'user' ? 'user-msg' : 'assistant-msg'}`}>{msg.content}</div>
       </div>
     );
   };
@@ -393,139 +350,37 @@ export default function StudioPage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&display=swap');
         * { box-sizing: border-box; }
         ::selection { background: #111; color: #f8f7f4; }
-
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
         @keyframes modalIn { from { opacity:0; transform:scale(0.97) translateY(4px); } to { opacity:1; transform:scale(1) translateY(0); } }
-
-        .tab-btn {
-          background: transparent; border: none;
-          padding: 0.35rem 0.75rem; font-size: 0.78rem;
-          font-family: 'DM Sans', sans-serif; font-weight: 400;
-          color: #999; cursor: pointer; border-radius: 3px;
-          transition: background 0.12s, color 0.12s; letter-spacing: 0.01em;
-        }
+        .tab-btn { background: transparent; border: none; padding: 0.35rem 0.75rem; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; font-weight: 400; color: #999; cursor: pointer; border-radius: 3px; transition: background 0.12s, color 0.12s; letter-spacing: 0.01em; }
         .tab-btn:hover { background: #f0ede8; color: #111; }
         .tab-btn.active { background: #111; color: #f8f7f4; }
-
-        .send-btn {
-          background: #111; color: #f8f7f4; border: none;
-          width: 32px; height: 32px; border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer; flex-shrink: 0;
-          transition: background 0.12s, transform 0.1s;
-        }
+        .send-btn { background: #111; color: #f8f7f4; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: background 0.12s, transform 0.1s; }
         .send-btn:hover { background: #333; transform: scale(1.05); }
         .send-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
-
-        .publish-btn {
-          display: inline-flex; align-items: center; gap: 0.4rem;
-          background: transparent; border: 1px solid #ddd;
-          padding: 0.38rem 0.85rem; font-size: 0.78rem;
-          font-family: 'DM Sans', sans-serif; font-weight: 400;
-          color: #555; cursor: pointer; border-radius: 3px;
-          transition: all 0.15s;
-        }
+        .publish-btn { display: inline-flex; align-items: center; gap: 0.4rem; background: transparent; border: 1px solid #ddd; padding: 0.38rem 0.85rem; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; font-weight: 400; color: #555; cursor: pointer; border-radius: 3px; transition: all 0.15s; }
         .publish-btn:hover { border-color: #999; color: #111; }
         .publish-btn.live { border-color: #2a9d5c; color: #2a9d5c; background: rgba(42,157,92,0.06); }
         .publish-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-        .delete-btn {
-          display: inline-flex; align-items: center; gap: 0.4rem;
-          background: transparent; border: 1px solid #ddd;
-          padding: 0.38rem 0.75rem; font-size: 0.78rem;
-          font-family: 'DM Sans', sans-serif; font-weight: 400;
-          color: #bbb; cursor: pointer; border-radius: 3px;
-          transition: all 0.15s;
-        }
+        .delete-btn { display: inline-flex; align-items: center; gap: 0.4rem; background: transparent; border: 1px solid #ddd; padding: 0.38rem 0.75rem; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; font-weight: 400; color: #bbb; cursor: pointer; border-radius: 3px; transition: all 0.15s; }
         .delete-btn:hover { border-color: #e57373; color: #e57373; background: rgba(229,115,115,0.05); }
-
-        .chat-msg {
-          animation: fadeUp 0.2s ease both;
-          max-width: 88%;
-          line-height: 1.55;
-        }
-
-        .user-msg {
-          background: #111; color: #f8f7f4;
-          border-radius: 12px 12px 3px 12px;
-          padding: 0.65rem 0.9rem;
-          font-size: 0.82rem; font-weight: 300;
-          align-self: flex-end;
-        }
-
-        .assistant-msg {
-          background: #fff; color: #111;
-          border: 1px solid #e8e6e1;
-          border-radius: 3px 12px 12px 12px;
-          padding: 0.65rem 0.9rem;
-          font-size: 0.82rem; font-weight: 300;
-        }
-
-        .chat-input {
-          flex: 1; border: none; outline: none; resize: none;
-          background: transparent; font-family: 'DM Sans', sans-serif;
-          font-size: 0.85rem; font-weight: 300; color: #111;
-          line-height: 1.5; min-height: 20px; max-height: 120px;
-          overflow-y: auto;
-        }
+        .chat-msg { animation: fadeUp 0.2s ease both; max-width: 88%; line-height: 1.55; }
+        .user-msg { background: #111; color: #f8f7f4; border-radius: 12px 12px 3px 12px; padding: 0.65rem 0.9rem; font-size: 0.82rem; font-weight: 300; }
+        .assistant-msg { background: #fff; color: #111; border: 1px solid #e8e6e1; border-radius: 3px 12px 12px 12px; padding: 0.65rem 0.9rem; font-size: 0.82rem; font-weight: 300; }
+        .chat-input { flex: 1; border: none; outline: none; resize: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 300; color: #111; line-height: 1.5; min-height: 20px; max-height: 120px; overflow-y: auto; }
         .chat-input::placeholder { color: #bbb; }
-
-        .model-select {
-          background: transparent;
-          border: 1px solid #e8e6e1;
-          border-radius: 4px;
-          padding: 0.25rem 0.5rem;
-          font-size: 0.72rem;
-          font-family: 'DM Mono', monospace;
-          color: #888;
-          cursor: pointer;
-          outline: none;
-          transition: border-color 0.15s, color 0.15s;
-          appearance: none;
-          -webkit-appearance: none;
-          padding-right: 1.2rem;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23bbb' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 0.4rem center;
-        }
+        .model-select { background: transparent; border: 1px solid #e8e6e1; border-radius: 4px; padding: 0.25rem 0.5rem; font-size: 0.72rem; font-family: 'DM Mono', monospace; color: #888; cursor: pointer; outline: none; transition: border-color 0.15s, color 0.15s; appearance: none; -webkit-appearance: none; padding-right: 1.2rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23bbb' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.4rem center; }
         .model-select:hover:not(:disabled) { border-color: #bbb; color: #555; }
         .model-select:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .modal-overlay {
-          position: fixed; inset: 0;
-          background: rgba(0,0,0,0.35);
-          backdrop-filter: blur(4px);
-          z-index: 1000;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .modal {
-          background: #fff; border: 1px solid #e8e6e1;
-          border-radius: 8px; padding: 2rem;
-          width: 100%; max-width: 380px;
-          animation: modalIn 0.2s ease both;
-          box-shadow: 0 8px 40px rgba(0,0,0,0.12);
-        }
-        .modal-cancel-btn {
-          background: transparent; border: 1px solid #ddd;
-          color: #777; padding: 0.55rem 1rem;
-          border-radius: 3px; font-size: 0.82rem;
-          cursor: pointer; font-family: 'DM Sans', sans-serif;
-          transition: border-color 0.15s;
-        }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .modal { background: #fff; border: 1px solid #e8e6e1; border-radius: 8px; padding: 2rem; width: 100%; max-width: 380px; animation: modalIn 0.2s ease both; box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
+        .modal-cancel-btn { background: transparent; border: 1px solid #ddd; color: #777; padding: 0.55rem 1rem; border-radius: 3px; font-size: 0.82rem; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: border-color 0.15s; }
         .modal-cancel-btn:hover { border-color: #999; color: #111; }
-        .modal-delete-confirm-btn {
-          background: #c0392b; border: none; color: #fff;
-          padding: 0.55rem 1.1rem; border-radius: 3px;
-          font-size: 0.82rem; cursor: pointer;
-          font-family: 'DM Sans', sans-serif; font-weight: 400;
-          transition: background 0.15s;
-        }
+        .modal-delete-confirm-btn { background: #c0392b; border: none; color: #fff; padding: 0.55rem 1.1rem; border-radius: 3px; font-size: 0.82rem; cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 400; transition: background 0.15s; }
         .modal-delete-confirm-btn:hover { background: #a93226; }
         .modal-delete-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-
       `}</style>
 
       {/* NAV */}
@@ -535,9 +390,7 @@ export default function StudioPage() {
             <Image src="/logo.png" alt="Hyphertext" width={22} height={22} style={{ borderRadius: '50%' }} />
           </Link>
           <span style={{ color: '#ddd', fontSize: '0.75rem' }}>/</span>
-          <span style={{ fontSize: '0.85rem', fontWeight: 400, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
-            {page?.title}
-          </span>
+          <span style={{ fontSize: '0.85rem', fontWeight: 400, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{page?.title}</span>
           {isAgentRunning && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '100px', padding: '0.2rem 0.6rem' }}>
               <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1s infinite' }} />
@@ -583,7 +436,13 @@ export default function StudioPage() {
         <div style={{ flex: '0 0 80%', borderRight: '1px solid #e8e6e1', background: viewMode === 'code' ? '#1e1e1e' : '#e8e6e1', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {viewMode === 'preview' && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'stretch' }}>
-              <iframe ref={iframeRef} style={{ flex: 1, border: 'none', display: 'block', background: '#fff' }} title="Page preview" sandbox="allow-scripts allow-same-origin" />
+              {/* FIX 3: ref callback fires immediately when iframe mounts */}
+              <iframe
+                ref={iframeRefCallback}
+                style={{ flex: 1, border: 'none', display: 'block', background: '#fff' }}
+                title="Page preview"
+                sandbox="allow-scripts allow-same-origin"
+              />
             </div>
           )}
           {viewMode === 'mobile' && (
@@ -595,28 +454,14 @@ export default function StudioPage() {
             </div>
           )}
           {viewMode === 'code' && (
-            <MonacoEditor
-              height="100%"
-              language="html"
-              theme="vs-dark"
-              value={page?.html_content || ''}
-              options={{
-                readOnly: true,
-                minimap: { enabled: false },
-                fontSize: 13,
-                lineNumbers: 'on',
-                wordWrap: 'on',
-                scrollBeyondLastLine: false,
-                fontFamily: "'DM Mono', 'Fira Code', monospace",
-                padding: { top: 16, bottom: 16 },
-              }}
+            <MonacoEditor height="100%" language="html" theme="vs-dark" value={page?.html_content || ''}
+              options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, lineNumbers: 'on', wordWrap: 'on', scrollBeyondLastLine: false, fontFamily: "'DM Mono', 'Fira Code', monospace", padding: { top: 16, bottom: 16 } }}
             />
           )}
         </div>
 
         {/* CHAT PANEL */}
         <div style={{ flex: '0 0 20%', display: 'flex', flexDirection: 'column', background: '#fff', minWidth: '260px', maxWidth: '380px' }}>
-
           <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#bbb', letterSpacing: '0.05em', textTransform: 'uppercase', margin: 0 }}>chat</p>
             {activeModel && (
@@ -629,7 +474,6 @@ export default function StudioPage() {
             )}
           </div>
 
-          {/* MESSAGES */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {messages.length === 0 && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.5rem' }}>
@@ -639,51 +483,24 @@ export default function StudioPage() {
             )}
             {messages.map(msg => renderMessage(msg))}
 
-            {/* PERSISTENT INDICATOR — image when idle, animation when running */}
             {hasEverSentMessage && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-start',
-                paddingTop: '0.25rem',
-              }}>
-                <div>
-                  {isAgentRunning ? (
-                    <Lottie
-                      animationData={loadingAnimationData}
-                      loop={true}
-                      style={{ width: '72px', height: '72px' }}
-                    />
-                  ) : (
-                    <Image
-                      src="/loader.png"
-                      alt="idle"
-                      width={24}
-                      height={24}
-                      style={{ objectFit: 'contain' }}
-                    />
-                  )}
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingTop: '0.25rem' }}>
+                {isAgentRunning
+                  ? <Lottie animationData={loadingAnimationData} loop={true} style={{ width: '72px', height: '72px' }} />
+                  : <Image src="/loader.png" alt="idle" width={24} height={24} style={{ objectFit: 'contain' }} />
+                }
               </div>
             )}
-
             <div ref={chatBottomRef} />
           </div>
 
-          {/* INPUT AREA */}
+          {/* INPUT */}
           <div style={{ padding: '0.75rem', borderTop: '1px solid #f0ede8', flexShrink: 0 }}>
             {!modelLocked && (
               <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb' }}>model</span>
-                <select
-                  className="model-select"
-                  value={selectedModel}
-                  onChange={e => handleModelChange(e.target.value)}
-                  disabled={modelLocked}
-                >
-                  {AVAILABLE_MODELS.map(m => (
-                    <option key={m.id} value={m.id}>{m.provider} / {m.label}</option>
-                  ))}
+                <select className="model-select" value={selectedModel} onChange={e => handleModelChange(e.target.value)} disabled={modelLocked}>
+                  {AVAILABLE_MODELS.map(m => <option key={m.id} value={m.id}>{m.provider} / {m.label}</option>)}
                 </select>
               </div>
             )}
@@ -693,27 +510,18 @@ export default function StudioPage() {
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#f59e0b' }}>answering clarification</span>
               </div>
             )}
-            <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', alignItems: 'flex-end', gap: '0.5rem', transition: 'border-color 0.15s' }}>
+            <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
               <textarea
                 ref={textareaRef}
                 className="chat-input"
-                placeholder={
-                  isAgentRunning ? 'generating...' :
-                  awaitingClarification ? 'type your answer...' :
-                  'describe a change...'
-                }
+                placeholder={isAgentRunning ? 'generating...' : awaitingClarification ? 'type your answer...' : 'describe a change...'}
                 value={input}
                 onChange={handleInputChange}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
                 disabled={isAgentRunning}
                 rows={1}
               />
-              <button className="send-btn" onClick={sendMessage} disabled={!input.trim() || isAgentRunning}>
+              <button className="send-btn" onClick={handleSendMessage} disabled={!input.trim() || isAgentRunning}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <path d="M1 13L13 7L1 1V5.5L9 7L1 8.5V13Z" fill="currentColor"/>
                 </svg>
@@ -732,14 +540,10 @@ export default function StudioPage() {
           <div className="modal">
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#e57373', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>delete page</p>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 400, letterSpacing: '-0.02em', color: '#111', margin: '0 0 0.5rem' }}>Delete "{page?.title}"?</h2>
-            <p style={{ fontSize: '0.83rem', color: '#999', fontWeight: 300, margin: '0 0 1.5rem', lineHeight: 1.6 }}>
-              This will permanently delete the page and all its chat history. This action cannot be undone.
-            </p>
+            <p style={{ fontSize: '0.83rem', color: '#999', fontWeight: 300, margin: '0 0 1.5rem', lineHeight: 1.6 }}>This will permanently delete the page and all its chat history. This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
               <button className="modal-cancel-btn" onClick={() => setShowDeleteModal(false)} disabled={deleting}>Cancel</button>
-              <button className="modal-delete-confirm-btn" onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Deleting...' : 'Yes, delete'}
-              </button>
+              <button className="modal-delete-confirm-btn" onClick={handleDelete} disabled={deleting}>{deleting ? 'Deleting...' : 'Yes, delete'}</button>
             </div>
           </div>
         </div>
