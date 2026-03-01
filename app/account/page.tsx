@@ -1,9 +1,75 @@
 // app/account/page.tsx
 'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { getSession, type ApiUser } from '@/lib/api';
+import AccountTab from './components/AccountTab';
+import PurchaseTab from './components/PurchaseTab';
+import UsageTab from './components/UsageTab';
+
+type Tab = 'account' | 'purchase' | 'usage';
 
 export default function AccountPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>('account');
+
+  useEffect(() => {
+    getSession().then((session) => {
+      if (!session) {
+        router.replace('/auth');
+      } else {
+        setUser(session.user);
+        setLoading(false);
+      }
+    });
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8f7f4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ width: '20px', height: '20px', border: '1.5px solid #ddd', borderTopColor: '#111', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'account',
+      label: 'Account',
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.2"/>
+          <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+    {
+      id: 'purchase',
+      label: 'Purchase',
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M2 2h2l2.4 7.6a1 1 0 00.96.73h5.28a1 1 0 00.96-.72L15 5H5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="6.5" cy="13.5" r="1" fill="currentColor"/>
+          <circle cx="12.5" cy="13.5" r="1" fill="currentColor"/>
+        </svg>
+      ),
+    },
+    {
+      id: 'usage',
+      label: 'Usage',
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M2 13V7M6 13V4M10 13V9M14 13V2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+  ];
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -19,50 +85,41 @@ export default function AccountPage() {
         @keyframes fadeIn { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
 
         .back-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.45rem;
-          background: transparent;
-          border: 1px solid #e8e6e1;
-          border-radius: 5px;
-          padding: 0.32rem 0.75rem 0.32rem 0.6rem;
-          font-size: 0.8rem;
-          font-family: 'DM Sans', sans-serif;
-          font-weight: 400;
-          color: #777;
-          cursor: pointer;
-          text-decoration: none;
-          transition: border-color 0.13s, color 0.13s, background 0.13s;
-          letter-spacing: 0.01em;
+          display: inline-flex; align-items: center; gap: 0.45rem;
+          background: transparent; border: 1px solid #e8e6e1; border-radius: 5px;
+          padding: 0.32rem 0.75rem 0.32rem 0.6rem; font-size: 0.8rem;
+          font-family: 'DM Sans', sans-serif; font-weight: 400; color: #777;
+          cursor: pointer; text-decoration: none;
+          transition: border-color 0.13s, color 0.13s, background 0.13s; letter-spacing: 0.01em;
         }
-        .back-btn:hover {
-          border-color: #ccc;
-          color: #111;
-          background: #fff;
+        .back-btn:hover { border-color: #ccc; color: #111; background: #fff; }
+
+        .tab-btn {
+          display: flex; align-items: center; gap: 0.55rem;
+          width: 100%; padding: 0.6rem 0.85rem; border: none;
+          background: transparent; border-radius: 6px; font-size: 0.83rem;
+          font-family: 'DM Sans', sans-serif; font-weight: 400;
+          color: #888; cursor: pointer; text-align: left;
+          transition: background 0.12s, color 0.12s; letter-spacing: 0.01em;
+          border-left: 2px solid transparent;
+        }
+        .tab-btn:hover { background: #f5f3ef; color: #444; }
+        .tab-btn.active {
+          background: #f0ede8; color: #111; font-weight: 500;
+          border-left-color: #111;
         }
       `}</style>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <header style={{
-        height: '52px',
-        background: '#fff',
-        borderBottom: '1px solid #e8e6e1',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 1.5rem',
-        flexShrink: 0,
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
+        height: '52px', background: '#fff', borderBottom: '1px solid #e8e6e1',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 1.5rem', flexShrink: 0, position: 'sticky', top: 0, zIndex: 50,
       }}>
-        {/* Logo */}
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', textDecoration: 'none' }}>
           <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: '50%' }} />
           <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: '#111', letterSpacing: '0.01em' }}>hyphertext</span>
         </Link>
-
-        {/* Back to dashboard */}
         <Link href="/dashboard/projects" className="back-btn">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M7.5 2L3.5 6l4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -71,98 +128,52 @@ export default function AccountPage() {
         </Link>
       </header>
 
-      {/* ── Content ── */}
-      <main style={{ flex: 1, padding: '2.75rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-        <div style={{ animation: 'fadeIn 0.35s ease both', maxWidth: '640px', width: '100%' }}>
+      {/* Body */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', height: 'calc(100vh - 52px)' }}>
 
-          {/* Page header */}
-          <div style={{ marginBottom: '2.25rem' }}>
-            <p style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: '0.62rem',
-              color: '#bbb',
-              letterSpacing: '0.07em',
-              textTransform: 'uppercase',
-              marginBottom: '0.35rem',
-            }}>
-              account
+        {/* Left sidebar */}
+        <aside style={{
+          width: '220px', flexShrink: 0, background: '#fff',
+          borderRight: '1px solid #e8e6e1', display: 'flex',
+          flexDirection: 'column', padding: '1.75rem 0.75rem',
+          gap: '0.1rem',
+        }}>
+          <p style={{
+            fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#ccc',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            margin: '0 0 0.85rem 0.35rem',
+          }}>settings</p>
+
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              className={`tab-btn${activeTab === tab.id ? ' active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+
+          {/* User info at bottom */}
+          <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '1px solid #f0ede8' }}>
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ccc', margin: '0 0 0.25rem 0.35rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>signed in as</p>
+            <p style={{ fontSize: '0.75rem', color: '#888', margin: '0 0 0 0.35rem', fontWeight: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.email}
             </p>
-            <h1 style={{
-              fontSize: 'clamp(1.4rem, 2.5vw, 1.9rem)',
-              fontWeight: 300,
-              letterSpacing: '-0.025em',
-              margin: 0,
-              color: '#111',
-            }}>
-              Account settings
-            </h1>
           </div>
+        </aside>
 
-          {/* Coming-soon card */}
-          <div style={{
-            background: '#fff',
-            border: '1px dashed #e0ddd8',
-            borderRadius: '10px',
-            padding: '4rem 2.5rem',
-            textAlign: 'center',
-          }}>
-            {/* Icon */}
-            <div style={{
-              width: '44px',
-              height: '44px',
-              border: '1.5px dashed #ddd',
-              borderRadius: '50%',
-              margin: '0 auto 1.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ddd',
-            }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <circle cx="9" cy="6" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
-                <path d="M2.5 16.5c0-3.59 2.91-6 6.5-6s6.5 2.41 6.5 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-              </svg>
-            </div>
-
-            <p style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: '0.68rem',
-              color: '#ccc',
-              marginBottom: '0.55rem',
-              letterSpacing: '0.04em',
-            }}>
-              in development
-            </p>
-            <h2 style={{
-              fontSize: '1.05rem',
-              fontWeight: 300,
-              letterSpacing: '-0.02em',
-              color: '#555',
-              margin: '0 0 0.5rem',
-            }}>
-              Account settings coming soon.
-            </h2>
-            <p style={{
-              fontSize: '0.84rem',
-              color: '#bbb',
-              fontWeight: 300,
-              margin: '0 0 2rem',
-              lineHeight: 1.7,
-            }}>
-              Profile, username, avatar, and billing will live here.
-            </p>
-
-            {/* Back button in card */}
-            <Link href="/dashboard/projects" className="back-btn" style={{ display: 'inline-flex' }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M7.5 2L3.5 6l4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Go back to dashboard
-            </Link>
+        {/* Right content */}
+        <main style={{ flex: 1, overflow: 'auto', padding: '2.5rem' }}>
+          <div style={{ maxWidth: '640px', animation: 'fadeIn 0.3s ease both' }}>
+            {activeTab === 'account' && <AccountTab user={user} />}
+            {activeTab === 'purchase' && <PurchaseTab userId={user?.id ?? ''} />}
+            {activeTab === 'usage' && <UsageTab userId={user?.id ?? ''} />}
           </div>
+        </main>
 
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
