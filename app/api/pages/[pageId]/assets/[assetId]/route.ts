@@ -4,16 +4,14 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 type Params = { params: Promise<{ pageId: string; assetId: string }> };
 
-// DELETE /api/pages/[pageId]/assets/[assetId]
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const { pageId, assetId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // fetch asset to verify ownership and get storage path
     const { data: asset } = await supabase
       .from('page_assets')
       .select('*, page:pages(owner_id)')
@@ -22,11 +20,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       .single();
 
     if (!asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
-    if (asset.owner_id !== session.user.id) {
+    if (asset.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // delete all child assets from storage first (images extracted from docs)
     const { data: children } = await supabase
       .from('page_assets')
       .select('storage_path')
@@ -39,22 +36,13 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       }
     }
 
-    // delete child DB records (cascade should handle this, but explicit is safer)
-    await supabase
-      .from('page_assets')
-      .delete()
-      .eq('parent_asset_id', assetId);
+    await supabase.from('page_assets').delete().eq('parent_asset_id', assetId);
 
-    // delete parent from storage
     if (asset.storage_path) {
       await supabase.storage.from('page-assets').remove([asset.storage_path]);
     }
 
-    // delete parent DB record
-    const { error } = await supabase
-      .from('page_assets')
-      .delete()
-      .eq('id', assetId);
+    const { error } = await supabase.from('page_assets').delete().eq('id', assetId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
@@ -64,14 +52,13 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   }
 }
 
-// GET /api/pages/[pageId]/assets/[assetId]
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { pageId, assetId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: asset, error } = await supabase
       .from('page_assets')
@@ -81,7 +68,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .single();
 
     if (error || !asset) return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
-    if (asset.owner_id !== session.user.id) {
+    if (asset.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

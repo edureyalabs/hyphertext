@@ -4,17 +4,12 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 type Params = { params: Promise<{ pageId: string }> };
 
-// File size limits (bytes)
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;   // 5 MB
-const MAX_DOC_SIZE   = 10 * 1024 * 1024;  // 10 MB
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_DOC_SIZE   = 10 * 1024 * 1024;
 
 const ALLOWED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/svg+xml',
+  'image/jpeg', 'image/jpg', 'image/png',
+  'image/gif', 'image/webp', 'image/svg+xml',
 ];
 
 const ALLOWED_DOC_TYPES = [
@@ -25,23 +20,21 @@ const ALLOWED_DOC_TYPES = [
 
 const ALL_ALLOWED = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_DOC_TYPES];
 
-// GET /api/pages/[pageId]/assets
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { pageId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // verify ownership
     const { data: page } = await supabase
       .from('pages')
       .select('owner_id')
       .eq('id', pageId)
       .single();
 
-    if (!page || page.owner_id !== session.user.id) {
+    if (!page || page.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -49,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .from('page_assets')
       .select('*')
       .eq('page_id', pageId)
-      .is('parent_asset_id', null)  // top-level assets only; extracted children fetched separately if needed
+      .is('parent_asset_id', null)
       .order('created_at', { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -60,26 +53,21 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 }
 
-// POST /api/pages/[pageId]/assets
-// Accepts multipart/form-data with a single field: "file"
-// This route ONLY uploads to storage and creates the DB record.
-// Processing (vision / document parsing) is triggered later when the user sends a message.
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { pageId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // verify ownership
     const { data: page } = await supabase
       .from('pages')
       .select('owner_id')
       .eq('id', pageId)
       .single();
 
-    if (!page || page.owner_id !== session.user.id) {
+    if (!page || page.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -90,14 +78,12 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // type check
     if (!ALL_ALLOWED.includes(file.type)) {
       return NextResponse.json({
-        error: `File type not supported. Allowed: images (JPG, PNG, GIF, WebP, SVG), PDF, DOC, DOCX`
+        error: 'File type not supported. Allowed: images (JPG, PNG, GIF, WebP, SVG), PDF, DOC, DOCX'
       }, { status: 400 });
     }
 
-    // size check
     const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
     const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_DOC_SIZE;
     if (file.size > maxSize) {
@@ -107,19 +93,15 @@ export async function POST(request: NextRequest, { params }: Params) {
       }, { status: 400 });
     }
 
-    // build storage path:  {owner_id}/{page_id}/{timestamp}-{filename}
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `${session.user.id}/${pageId}/${Date.now()}-${safeName}`;
+    const storagePath = `${user.id}/${pageId}/${Date.now()}-${safeName}`;
 
     const arrayBuffer = await file.arrayBuffer();
     const fileBytes = new Uint8Array(arrayBuffer);
 
     const { error: uploadError } = await supabase.storage
       .from('page-assets')
-      .upload(storagePath, fileBytes, {
-        contentType: file.type,
-        upsert: false,
-      });
+      .upload(storagePath, fileBytes, { contentType: file.type, upsert: false });
 
     if (uploadError) {
       return NextResponse.json({ error: uploadError.message }, { status: 400 });
@@ -129,20 +111,19 @@ export async function POST(request: NextRequest, { params }: Params) {
       .from('page-assets')
       .getPublicUrl(storagePath);
 
-    // determine asset_type
     const assetType = isImage ? 'image' : 'document';
 
     const { data: asset, error: dbError } = await supabase
       .from('page_assets')
       .insert({
         page_id: pageId,
-        owner_id: session.user.id,
+        owner_id: user.id,
         file_name: safeName,
         original_file_name: file.name,
         file_type: file.type,
         asset_type: assetType,
         storage_path: storagePath,
-        public_url: isImage ? publicUrl : null,  // docs don't need a public URL
+        public_url: isImage ? publicUrl : null,
         file_size_bytes: file.size,
         processing_status: 'pending',
       })
@@ -150,7 +131,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       .single();
 
     if (dbError || !asset) {
-      // clean up storage if DB insert fails
       await supabase.storage.from('page-assets').remove([storagePath]);
       return NextResponse.json({ error: dbError?.message ?? 'Failed to save asset' }, { status: 400 });
     }

@@ -2,13 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-// GET /api/pages — list all pages for the authenticated user
 export async function GET() {
   try {
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -27,14 +26,12 @@ export async function GET() {
   }
 }
 
-// POST /api/pages — create a new page
-// Body: { title: string, html_content?: string }
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -48,7 +45,7 @@ export async function POST(request: NextRequest) {
     const { data: page, error } = await supabase
       .from('pages')
       .insert({
-        owner_id: session.user.id,
+        owner_id: user.id,
         title: title.trim(),
         html_content: html_content ?? '',
         is_published: false,

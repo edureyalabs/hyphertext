@@ -2,8 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-// POST /api/auth/update-password
-// Body: { password: string }
 export async function POST(request: NextRequest) {
   try {
     const { password } = await request.json();
@@ -18,9 +16,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createSupabaseServerClient();
 
-    // Verify we have an active session before updating
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'No active session. Please use the reset link again.' }, { status: 401 });
     }
 

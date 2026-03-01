@@ -4,25 +4,23 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 type Params = { params: Promise<{ pageId: string }> };
 
-// GET /api/pages/[pageId]/messages — get all chat messages for a page
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { pageId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify page ownership
     const { data: page } = await supabase
       .from('pages')
       .select('owner_id')
       .eq('id', pageId)
       .single();
 
-    if (!page || page.owner_id !== session.user.id) {
+    if (!page || page.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -42,26 +40,23 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 }
 
-// POST /api/pages/[pageId]/messages — insert a new user chat message
-// Body: { content: string, model_id: string }
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { pageId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify page ownership
     const { data: page } = await supabase
       .from('pages')
       .select('owner_id')
       .eq('id', pageId)
       .single();
 
-    if (!page || page.owner_id !== session.user.id) {
+    if (!page || page.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

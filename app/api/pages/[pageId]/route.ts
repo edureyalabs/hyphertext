@@ -4,14 +4,13 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 type Params = { params: Promise<{ pageId: string }> };
 
-// GET /api/pages/[pageId]
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { pageId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -25,8 +24,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     }
 
-    // Ensure user owns the page
-    if (page.owner_id !== session.user.id) {
+    if (page.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -36,31 +34,27 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 }
 
-// PATCH /api/pages/[pageId]
-// Body: Partial<{ title, html_content, is_published }>
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
     const { pageId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify ownership first
     const { data: existing } = await supabase
       .from('pages')
       .select('owner_id')
       .eq('id', pageId)
       .single();
 
-    if (!existing || existing.owner_id !== session.user.id) {
+    if (!existing || existing.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await request.json();
-    // Only allow safe fields to be updated
     const allowed = ['title', 'html_content', 'is_published'] as const;
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
@@ -88,25 +82,23 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 }
 
-// DELETE /api/pages/[pageId]
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     const { pageId } = await params;
     const supabase = await createSupabaseServerClient();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify ownership
     const { data: existing } = await supabase
       .from('pages')
       .select('owner_id')
       .eq('id', pageId)
       .single();
 
-    if (!existing || existing.owner_id !== session.user.id) {
+    if (!existing || existing.owner_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

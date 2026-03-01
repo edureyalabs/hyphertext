@@ -2,11 +2,8 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 export default function AccountPage() {
-  const router = useRouter();
-
   return (
     <div style={{
       minHeight: '100vh',
