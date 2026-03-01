@@ -34,6 +34,35 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export interface PageAsset {
+  id: string;
+  page_id: string;
+  owner_id: string;
+  file_name: string;
+  original_file_name: string;
+  file_type: string;
+  asset_type: 'image' | 'document' | 'extracted_image';
+  storage_path: string | null;
+  public_url: string | null;
+  extracted_text: string | null;
+  extracted_summary: string | null;
+  vision_description: string | null;
+  vision_tags: string[];
+  vision_suggested_use: string | null;
+  vision_alt_text: string | null;
+  vision_contains_text: boolean;
+  vision_extracted_text: string | null;
+  dominant_colors: string[];
+  width: number | null;
+  height: number | null;
+  file_size_bytes: number;
+  parent_asset_id: string | null;
+  processing_status: 'pending' | 'processing' | 'ready' | 'failed';
+  processing_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export async function getSession(): Promise<ApiSession | null> {
@@ -173,16 +202,77 @@ export async function sendMessage(
   return { message: data.message };
 }
 
+// ─── Assets ──────────────────────────────────────────────────────────────────
+
+export async function listAssets(pageId: string): Promise<PageAsset[]> {
+  const res = await fetch(`/api/pages/${pageId}/assets`, { credentials: 'include' });
+  if (!res.ok) return [];
+  const { assets } = await res.json();
+  return assets ?? [];
+}
+
+/**
+ * Upload a single file. Returns the created asset record (processing_status will be 'pending').
+ * Actual processing (vision / document parsing) is triggered by the backend when
+ * the user sends their next message.
+ */
+export async function uploadAsset(
+  pageId: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<{ asset?: PageAsset; error?: string }> {
+  return new Promise((resolve) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/pages/${pageId}/assets`);
+    xhr.withCredentials = true;
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+    }
+
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({ asset: data.asset });
+        } else {
+          resolve({ error: data.error ?? 'Upload failed' });
+        }
+      } catch {
+        resolve({ error: 'Upload failed' });
+      }
+    };
+
+    xhr.onerror = () => resolve({ error: 'Network error during upload' });
+    xhr.send(formData);
+  });
+}
+
+export async function deleteAsset(
+  pageId: string,
+  assetId: string
+): Promise<{ error?: string }> {
+  const res = await fetch(`/api/pages/${pageId}/assets/${assetId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) return { error: data.error };
+  return {};
+}
+
 // ─── Realtime (SSE) ──────────────────────────────────────────────────────────
 
 export type SSEPageUpdateHandler = (page: Partial<Page>) => void;
 export type SSEMessageHandler = (msg: ChatMessage, event: 'insert' | 'update') => void;
 
-/**
- * Opens a Server-Sent Events connection to our SSE proxy route.
- * The browser connects to Vercel — Vercel connects to Supabase Realtime.
- * Returns a cleanup function to close the connection.
- */
 export function subscribeToPage(
   pageId: string,
   onPageUpdate: SSEPageUpdateHandler,
@@ -193,26 +283,18 @@ export function subscribeToPage(
   });
 
   eventSource.addEventListener('page_update', (e: MessageEvent) => {
-    try {
-      onPageUpdate(JSON.parse(e.data));
-    } catch { /* ignore parse errors */ }
+    try { onPageUpdate(JSON.parse(e.data)); } catch { /* ignore */ }
   });
 
   eventSource.addEventListener('message_insert', (e: MessageEvent) => {
-    try {
-      onMessage(JSON.parse(e.data), 'insert');
-    } catch { /* ignore */ }
+    try { onMessage(JSON.parse(e.data), 'insert'); } catch { /* ignore */ }
   });
 
   eventSource.addEventListener('message_update', (e: MessageEvent) => {
-    try {
-      onMessage(JSON.parse(e.data), 'update');
-    } catch { /* ignore */ }
+    try { onMessage(JSON.parse(e.data), 'update'); } catch { /* ignore */ }
   });
 
-  eventSource.onerror = () => {
-    // EventSource auto-reconnects on error — no manual handling needed
-  };
+  eventSource.onerror = () => { /* auto-reconnects */ };
 
   return () => eventSource.close();
 }
