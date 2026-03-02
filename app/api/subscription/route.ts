@@ -5,10 +5,7 @@ import { createRazorpayOrder } from '@/lib/razorpay';
 import { verifyRazorpaySignature, fetchPaymentDetails } from '@/lib/razorpay';
 
 const TIER_PRICES: Record<string, number> = {
-  starter: 2,
-  builder: 5,
-  studio: 10,
-  agency: 20,
+  pro: 5,
 };
 
 export async function GET() {
@@ -40,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'create_order') {
       if (!tier || !TIER_PRICES[tier]) {
-        return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid tier. Only "pro" is available.' }, { status: 400 });
       }
 
       const amountUSD = TIER_PRICES[tier];
@@ -49,8 +46,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Payment configuration error' }, { status: 500 });
       }
 
-      const tokensPerDollar = 1;
-      const result = await createRazorpayOrder(amountUSD, user.id, tokensPerDollar, 'USD');
+      // tokensPerDollar = 1 as a placeholder (subscriptions don't credit tokens)
+      const result = await createRazorpayOrder(amountUSD, user.id, 1, 'USD');
 
       if (!result.success || !result.order) {
         return NextResponse.json({ error: result.error || 'Failed to create order' }, { status: 500 });
@@ -74,6 +71,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
       }
 
+      if (!TIER_PRICES[tier]) {
+        return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
+      }
+
       const isValid = verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
       if (!isValid) {
         return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 });
@@ -90,19 +91,25 @@ export async function POST(request: NextRequest) {
         { auth: { persistSession: false } }
       );
 
-      const { data } = await adminSupabase.rpc('upgrade_subscription', {
-        p_user_id: user.id,
-        p_tier: tier,
-        p_razorpay_order_id: razorpay_order_id,
+      const { data, error } = await adminSupabase.rpc('upgrade_subscription', {
+        p_user_id:             user.id,
+        p_tier:                tier,
+        p_razorpay_order_id:   razorpay_order_id,
         p_razorpay_payment_id: razorpay_payment_id,
-        p_amount_usd: TIER_PRICES[tier] || 0,
+        p_amount_usd:          TIER_PRICES[tier],
       });
+
+      if (error) {
+        console.error('upgrade_subscription error:', error);
+        return NextResponse.json({ error: 'Failed to upgrade subscription' }, { status: 500 });
+      }
 
       return NextResponse.json({ success: true, result: data });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-  } catch {
+  } catch (err: any) {
+    console.error('Subscription route error:', err);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
