@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -11,7 +11,14 @@ import HostingTab from './components/HostingTab';
 
 type Tab = 'account' | 'purchase' | 'usage' | 'hosting';
 
-export default function AccountPage() {
+const Spinner = () => (
+  <div style={{ minHeight: '100vh', background: '#f8f7f4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div style={{ width: '20px', height: '20px', border: '1.5px solid #ddd', borderTopColor: '#111', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+  </div>
+);
+
+function AccountContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -36,14 +43,7 @@ export default function AccountPage() {
     });
   }, [router]);
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f8f7f4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <div style={{ width: '20px', height: '20px', border: '1.5px solid #ddd', borderTopColor: '#111', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      </div>
-    );
-  }
+  if (loading) return <Spinner />;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -165,5 +165,13 @@ export default function AccountPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <AccountContent />
+    </Suspense>
   );
 }
