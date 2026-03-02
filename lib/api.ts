@@ -276,31 +276,33 @@ export async function verifyAndUpgradeSubscription(tier: string, razorpay_order_
   return { success: true };
 }
 
+// FIX: removed redundant dynamic re-import, using top-level supabase
 export async function signIn(email: string, password: string): Promise<{ error: string | null }> {
-  const { supabase } = await import('@/lib/supabase');
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
   return { error: null };
 }
 
-export async function signUp(email: string, password: string): Promise<{ error: string | null }> {
-  const { supabase } = await import('@/lib/supabase');
-  const { error } = await supabase.auth.signUp({ email, password });
-  if (error) return { error: error.message };
-  return { error: null };
+// FIX: added requiresConfirmation, removed redundant dynamic re-import
+export async function signUp(email: string, password: string): Promise<{ requiresConfirmation: boolean; error: string | null }> {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) return { requiresConfirmation: false, error: error.message };
+  const requiresConfirmation = !data.session;
+  return { requiresConfirmation, error: null };
 }
 
+// FIX: guarded window.location.origin for SSR safety, removed redundant dynamic re-import
 export async function forgotPassword(email: string): Promise<{ error: string | null }> {
-  const { supabase } = await import('@/lib/supabase');
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset-password`,
+    redirectTo: `${origin}/auth/reset-password`,
   });
   if (error) return { error: error.message };
   return { error: null };
 }
 
+// FIX: removed redundant dynamic re-import, using top-level supabase
 export async function updatePassword(newPassword: string): Promise<{ error: string | null }> {
-  const { supabase } = await import('@/lib/supabase');
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) return { error: error.message };
   return { error: null };
