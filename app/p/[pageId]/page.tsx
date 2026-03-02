@@ -1,11 +1,8 @@
-// app/p/[pageId]/page.tsx
 import { createClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
 
-// Server-only client — this code runs only on Vercel, never in the browser
 const supabaseServer = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  // Prefer service role for server-to-server reads if available
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   { auth: { persistSession: false } }
 );
@@ -15,9 +12,10 @@ export default async function PublishedPage({ params }: { params: Promise<{ page
 
   const { data: page } = await supabaseServer
     .from('pages')
-    .select('html_content, title, is_published')
+    .select('html_content, title, is_published, hosting_status')
     .eq('id', pageId)
     .eq('is_published', true)
+    .eq('hosting_status', 'active')
     .single();
 
   if (!page) notFound();

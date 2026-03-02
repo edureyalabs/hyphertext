@@ -1,4 +1,3 @@
-// app/api/pages/[pageId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -29,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     return NextResponse.json({ page });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -46,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const { data: existing } = await supabase
       .from('pages')
-      .select('owner_id')
+      .select('owner_id, is_published, hosting_status')
       .eq('id', pageId)
       .single();
 
@@ -55,7 +54,25 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
 
     const body = await request.json();
-    const allowed = ['title', 'html_content', 'is_published'] as const;
+
+    if (body.is_published === true && !existing.is_published) {
+      const { data: canPublish } = await supabase.rpc('check_can_publish', {
+        p_user_id: user.id,
+        p_page_id: pageId,
+      });
+
+      if (canPublish && !canPublish.allowed) {
+        return NextResponse.json({
+          error: `You have reached your hosting limit of ${canPublish.site_limit} published site${canPublish.site_limit === 1 ? '' : 's'} on your current plan. Upgrade to host more sites.`,
+          code: 'hosting_limit_reached',
+          tier: canPublish.tier,
+          site_limit: canPublish.site_limit,
+          published_count: canPublish.published_count,
+        }, { status: 403 });
+      }
+    }
+
+    const allowed = ['title', 'html_content', 'is_published', 'html_summary'] as const;
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) updates[key] = body[key];
@@ -77,7 +94,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
 
     return NextResponse.json({ page });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -112,7 +129,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
