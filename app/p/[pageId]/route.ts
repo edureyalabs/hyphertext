@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { notFound } from 'next/navigation';
+import { NextResponse } from 'next/server';
 
 const supabaseServer = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,7 +7,10 @@ const supabaseServer = createClient(
   { auth: { persistSession: false } }
 );
 
-export default async function PublishedPage({ params }: { params: Promise<{ pageId: string }> }) {
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ pageId: string }> }
+) {
   const { pageId } = await params;
 
   const { data: page } = await supabaseServer
@@ -18,17 +21,15 @@ export default async function PublishedPage({ params }: { params: Promise<{ page
     .eq('hosting_status', 'active')
     .single();
 
-  if (!page) notFound();
+  if (!page) {
+    return new NextResponse('Not found', { status: 404 });
+  }
 
-  return (
-    <html>
-      <head>
-        <title>{page.title}</title>
-      </head>
-      <body
-        style={{ margin: 0, padding: 0 }}
-        dangerouslySetInnerHTML={{ __html: page.html_content }}
-      />
-    </html>
-  );
+  return new NextResponse(page.html_content, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 }
