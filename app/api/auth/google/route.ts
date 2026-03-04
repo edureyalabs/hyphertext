@@ -2,12 +2,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseRequestClient } from '@/lib/supabase/server';
 
-// GET /api/auth/google
-// Initiates the Google OAuth flow via Supabase
 export async function GET(request: NextRequest) {
   try {
     const { supabase, responseHeaders } = createSupabaseRequestClient(request);
-    const origin = request.headers.get('origin') ?? '';
+
+    // Use host + x-forwarded-proto — always present on GET navigations
+    const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? '';
+    const protocol = request.headers.get('x-forwarded-proto') ?? 'https';
+    const origin = `${protocol}://${host}`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -21,12 +23,13 @@ export async function GET(request: NextRequest) {
     });
 
     if (error || !data.url) {
-      return NextResponse.json({ error: error?.message ?? 'Could not initiate Google login' }, { status: 500 });
+      return NextResponse.json(
+        { error: error?.message ?? 'Could not initiate Google login' },
+        { status: 500 }
+      );
     }
 
-    // Redirect the browser to Google's OAuth consent screen
     const response = NextResponse.redirect(data.url);
-
     responseHeaders.getSetCookie?.()?.forEach((cookie) => {
       response.headers.append('Set-Cookie', cookie);
     });
