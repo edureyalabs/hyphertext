@@ -31,14 +31,6 @@ const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 type ViewMode = 'preview' | 'mobile' | 'code';
 type ChatTab  = 'chat' | 'files';
 
-const AVAILABLE_MODELS = [
-  { id: 'groq/llama-3.3-70b',        label: 'Llama 3.3 70B',    provider: 'Groq' },
-  { id: 'groq/llama-3.1-8b',         label: 'Llama 3.1 8B',     provider: 'Groq' },
-  { id: 'claude/claude-sonnet-4-5',  label: 'Claude Sonnet',    provider: 'Anthropic' },
-  { id: 'claude/claude-haiku-4-5',   label: 'Claude Haiku',     provider: 'Anthropic' },
-];
-
-const DEFAULT_MODEL = 'groq/llama-3.3-70b';
 const AGENT_TIMEOUT_MS = 90000;
 
 const ALLOWED_TYPES = [
@@ -52,16 +44,6 @@ const MAX_DOC_BYTES   = 10 * 1024 * 1024;
 
 function deriveAgentRunning(msgs: ChatMessage[]): boolean {
   return msgs.some(m => m.status === 'pending' || m.status === 'processing');
-}
-
-function getStoredModel(pageId: string): string {
-  if (typeof window === 'undefined') return DEFAULT_MODEL;
-  return localStorage.getItem(`model:${pageId}`) || DEFAULT_MODEL;
-}
-
-function storeModel(pageId: string, modelId: string) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(`model:${pageId}`, modelId);
 }
 
 function formatBytes(bytes: number): string {
@@ -139,8 +121,6 @@ export default function StudioPage() {
   const [loading, setLoading]                 = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]               = useState(false);
-  const [selectedModel, setSelectedModel]     = useState<string>(DEFAULT_MODEL);
-  const [modelLocked, setModelLocked]         = useState(false);
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
   const [awaitingClarification, setAwaitingClarification] = useState(false);
   const [hasEverSentMessage, setHasEverSentMessage]       = useState(false);
@@ -210,11 +190,6 @@ export default function StudioPage() {
       setAssets(assetList);
       setVersions(versionList);
 
-      const storedModel = getStoredModel(pageId);
-      setSelectedModel(storedModel);
-
-      const hasCompleted = msgList.some((m: ChatMessage) => m.role === 'user' && m.status === 'completed');
-      if (hasCompleted) setModelLocked(true);
       if (msgList.length > 0) setHasEverSentMessage(true);
 
       const agentCurrentlyRunning = deriveAgentRunning(msgList);
@@ -222,7 +197,9 @@ export default function StudioPage() {
       if (agentCurrentlyRunning) startAgentTimeout();
 
       const lastMsg = msgList[msgList.length - 1];
-      const hasPendingClarification = lastMsg?.message_type === 'clarification' && lastMsg?.meta?.awaiting_clarification === true;
+      const hasPendingClarification =
+        lastMsg?.message_type === 'clarification' &&
+        lastMsg?.meta?.awaiting_clarification === true;
       setAwaitingClarification(hasPendingClarification);
 
       setLoading(false);
@@ -322,7 +299,6 @@ export default function StudioPage() {
     setHasEverSentMessage(true);
     startAgentTimeout();
     if (awaitingClarification) setAwaitingClarification(false);
-    if (!modelLocked) { setModelLocked(true); storeModel(pageId, selectedModel); }
 
     if (stagedFiles.length > 0) {
       const filesToUpload = [...stagedFiles];
@@ -341,7 +317,8 @@ export default function StudioPage() {
       );
     }
 
-    const { error } = await sendMessage(pageId, text, selectedModel);
+    // model_id omitted — backend selects automatically
+    const { error } = await sendMessage(pageId, text);
     if (error) { setIsAgentRunning(false); clearAgentTimeout(); }
   };
 
@@ -381,12 +358,6 @@ export default function StudioPage() {
     const { error } = await deleteAsset(pageId, assetId);
     if (!error) setAssets(prev => prev.filter(a => a.id !== assetId));
     setDeletingAssetId(null);
-  };
-
-  const handleModelChange = (modelId: string) => {
-    if (modelLocked) return;
-    setSelectedModel(modelId);
-    storeModel(pageId, modelId);
   };
 
   const handlePublish = async () => {
@@ -429,7 +400,8 @@ export default function StudioPage() {
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
   };
 
-  const toggleThinking = (msgId: string) => setExpandedThinking(prev => ({ ...prev, [msgId]: !prev[msgId] }));
+  const toggleThinking = (msgId: string) =>
+    setExpandedThinking(prev => ({ ...prev, [msgId]: !prev[msgId] }));
 
   const renderThinkingBlock = (msg: ChatMessage) => {
     const plan = msg.meta?.plan as Record<string, any> ?? {};
@@ -445,7 +417,11 @@ export default function StudioPage() {
         </button>
         {isExpanded && (
           <div style={{ marginTop: '0.4rem', background: '#fafaf9', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '0.75rem', maxWidth: '300px', width: '100%' }}>
-            {plan.description && <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#333', fontWeight: 400, lineHeight: 1.5 }}>{plan.description}</p>}
+            {plan.description && (
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#333', fontWeight: 400, lineHeight: 1.5 }}>
+                {plan.description}
+              </p>
+            )}
             {plan.changes && plan.changes.length > 0 && (
               <div>
                 <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', textTransform: 'uppercase' }}>changes</p>
@@ -551,7 +527,6 @@ export default function StudioPage() {
   }
 
   const publishUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/p/${pageId}`;
-  const activeModel = AVAILABLE_MODELS.find(m => m.id === selectedModel);
   const readyAssets = assets.filter(a => a.processing_status === 'ready');
   const isLive = page?.is_published && page?.hosting_status === 'active';
   const isSuspended = page?.is_published && page?.hosting_status === 'suspended';
@@ -612,9 +587,6 @@ export default function StudioPage() {
         .chat-input { flex: 1; border: none; outline: none; resize: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 300; color: #111; line-height: 1.5; min-height: 20px; max-height: 120px; overflow-y: auto; }
         .chat-input::placeholder { color: #bbb; }
 
-        .model-select { background: transparent; border: 1px solid #e8e6e1; border-radius: 4px; padding: 0.25rem 1.2rem 0.25rem 0.5rem; font-size: 0.72rem; font-family: 'DM Mono', monospace; color: #888; cursor: pointer; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23bbb' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.4rem center; }
-        .model-select:disabled { opacity: 0.5; cursor: not-allowed; }
-
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; }
         .modal { background: #fff; border: 1px solid #e8e6e1; border-radius: 8px; padding: 2rem; width: 100%; max-width: 380px; animation: modalIn 0.2s ease both; box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
 
@@ -634,6 +606,7 @@ export default function StudioPage() {
 
       <input ref={fileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx" style={{ display: 'none' }} onChange={e => { if (e.target.files) stageFiles(e.target.files); e.target.value = ''; }} />
 
+      {/* ── Nav ─────────────────────────────────────────────────────────────── */}
       <nav style={{ height: '48px', background: '#fff', borderBottom: '1px solid #e8e6e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem', flexShrink: 0, gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
           <Link href="/dashboard/projects" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', flexShrink: 0 }}>
@@ -667,11 +640,6 @@ export default function StudioPage() {
             <button className={`sync-btn${syncDone ? ' done' : ''}`} onClick={handleSyncCode} disabled={syncing}>
               {syncing ? 'Saving...' : syncDone ? 'Saved' : 'Sync code'}
             </button>
-          )}
-          {publishError && (
-            <span style={{ fontSize: '0.72rem', color: '#e05252', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={publishError}>
-              {publishError}
-            </span>
           )}
           {isLive && (
             <a href={publishUrl} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#2a9d5c', textDecoration: 'none', borderBottom: '1px solid currentColor', lineHeight: 1 }}>
@@ -709,7 +677,10 @@ export default function StudioPage() {
         </div>
       )}
 
+      {/* ── Main layout ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+        {/* ── Preview / Code pane ──────────────────────────────────────────── */}
         <div style={{ flex: '0 0 72%', borderRight: '1px solid #e8e6e1', background: viewMode === 'code' ? '#1e1e1e' : '#e8e6e1', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {viewMode === 'preview' && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'stretch' }}>
@@ -748,26 +719,21 @@ export default function StudioPage() {
           )}
         </div>
 
+        {/* ── Chat pane ────────────────────────────────────────────────────── */}
         <div style={{ flex: '0 0 28%', minWidth: '300px', maxWidth: '480px', display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative' }}>
-          <div style={{ padding: '0 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '42px' }}>
-            <div style={{ display: 'flex', gap: '0', alignItems: 'center' }}>
-              <button className={`chat-tab-btn${chatTab === 'chat' ? ' active' : ''}`} onClick={() => setChatTab('chat')}>chat</button>
-              <button className={`chat-tab-btn${chatTab === 'files' ? ' active' : ''}`} onClick={() => setChatTab('files')} style={{ position: 'relative' }}>
-                files
-                {assets.length > 0 && (
-                  <span style={{ marginLeft: '0.3rem', background: chatTab === 'files' ? '#111' : '#e8e6e1', color: chatTab === 'files' ? '#fff' : '#888', borderRadius: '100px', padding: '0 0.35rem', fontSize: '0.58rem', fontFamily: "'DM Mono', monospace", lineHeight: '1.4', display: 'inline-block' }}>
-                    {assets.length}
-                  </span>
-                )}
-              </button>
-            </div>
-            {activeModel && chatTab === 'chat' && (
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '3px', padding: '0.1rem 0.4rem' }}>
-                {activeModel.label}
-              </span>
-            )}
+          <div style={{ padding: '0 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0, display: 'flex', alignItems: 'center', height: '42px' }}>
+            <button className={`chat-tab-btn${chatTab === 'chat' ? ' active' : ''}`} onClick={() => setChatTab('chat')}>chat</button>
+            <button className={`chat-tab-btn${chatTab === 'files' ? ' active' : ''}`} onClick={() => setChatTab('files')} style={{ position: 'relative' }}>
+              files
+              {assets.length > 0 && (
+                <span style={{ marginLeft: '0.3rem', background: chatTab === 'files' ? '#111' : '#e8e6e1', color: chatTab === 'files' ? '#fff' : '#888', borderRadius: '100px', padding: '0 0.35rem', fontSize: '0.58rem', fontFamily: "'DM Mono', monospace", lineHeight: '1.4', display: 'inline-block' }}>
+                  {assets.length}
+                </span>
+              )}
+            </button>
           </div>
 
+          {/* ── Version history panel ──────────────────────────────────────── */}
           {showVersions && (
             <div className="versions-panel">
               <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -805,6 +771,7 @@ export default function StudioPage() {
             </div>
           )}
 
+          {/* ── Chat tab ──────────────────────────────────────────────────── */}
           {chatTab === 'chat' && (
             <>
               <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -830,14 +797,6 @@ export default function StudioPage() {
               </div>
 
               <div style={{ padding: '0.75rem', borderTop: '1px solid #f0ede8', flexShrink: 0 }}>
-                {!modelLocked && (
-                  <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb' }}>model</span>
-                    <select className="model-select" value={selectedModel} onChange={e => handleModelChange(e.target.value)} disabled={modelLocked}>
-                      {AVAILABLE_MODELS.map(m => <option key={m.id} value={m.id}>{m.provider} / {m.label}</option>)}
-                    </select>
-                  </div>
-                )}
                 {awaitingClarification && (
                   <div style={{ marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                     <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
@@ -893,12 +852,13 @@ export default function StudioPage() {
                   </div>
                 </div>
                 <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#ddd', marginTop: '0.4rem', textAlign: 'center' }}>
-                  enter to send - shift+enter for newline
+                  enter to send · shift+enter for newline
                 </p>
               </div>
             </>
           )}
 
+          {/* ── Files tab ─────────────────────────────────────────────────── */}
           {chatTab === 'files' && (
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
               {assets.length === 0 && pendingUploads.length === 0 ? (
@@ -915,7 +875,7 @@ export default function StudioPage() {
                 <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                     <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      {assets.length} file{assets.length !== 1 ? 's' : ''} - {readyAssets.length} ready
+                      {assets.length} file{assets.length !== 1 ? 's' : ''} · {readyAssets.length} ready
                     </span>
                     <button onClick={() => fileInputRef.current?.click()} style={{ background: 'transparent', border: '1px solid #ddd', borderRadius: '3px', padding: '0.25rem 0.6rem', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#888', cursor: 'pointer' }}>
                       + add
@@ -943,6 +903,7 @@ export default function StudioPage() {
         </div>
       </div>
 
+      {/* ── Delete modal ─────────────────────────────────────────────────────── */}
       {showDeleteModal && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteModal(false); }}>
           <div className="modal">
