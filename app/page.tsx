@@ -644,11 +644,11 @@ export default function Home() {
           maxWidth: "1400px",
           margin: "0 auto",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "1.5rem"
+          gap: "1.75rem"
         }}>
+          {/* Logo */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.7rem" }}>
             <Image
               src="/logo.png"
@@ -667,8 +667,10 @@ export default function Home() {
               hyphertext
             </span>
           </div>
-          <div style={{ display: "flex", gap: "2.25rem", flexWrap: "wrap" }}>
-            {[["Explore", "/explore"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
+
+          {/* Nav links */}
+          <div style={{ display: "flex", gap: "2.25rem", flexWrap: "wrap", justifyContent: "center" }}>
+            {[["About", "/about"], ["Pricing", "/pricing"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
               <Link
                 key={href}
                 href={href}
@@ -688,6 +690,8 @@ export default function Home() {
               </Link>
             ))}
           </div>
+
+          {/* Copyright */}
           <span style={{
             fontFamily: "'DM Mono', monospace",
             fontSize: "0.8rem",
@@ -695,7 +699,7 @@ export default function Home() {
             fontWeight: 400,
             letterSpacing: "0.02em"
           }}>
-            © 2025 Hyphertext · All Rights Reserved
+            © 2025 Hyphertext · Bengaluru, India
           </span>
         </div>
       </footer>

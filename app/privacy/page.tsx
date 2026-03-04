@@ -86,63 +86,122 @@ const SECTIONS = [
   },
 ];
 
+const ACCENT_COLORS = [
+  "#C85A1A", "#1A5AC8", "#1A8A4A", "#6B3AC8",
+  "#C85A1A", "#1A5AC8", "#1A8A4A", "#6B3AC8", "#C85A1A"
+];
+
 export default function PrivacyPage() {
   return (
-    <main style={{ background: "#F5F3EE", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", color: "#111" }}>
+    <main style={{ background: "#F4F2ED", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", color: "#111" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&family=Playfair+Display:ital,wght@1,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@1,400&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        ::selection { background: #111; color: #F5F3EE; }
-        .nav-link { font-size: 0.82rem; color: #777; text-decoration: none; transition: color 0.15s; }
+        ::selection { background: #111; color: #F4F2ED; }
+        :root {
+          --border: #D8D3C8;
+          --accent: #C85A1A;
+          --accent-blue: #1A5AC8;
+          --accent-green: #1A8A4A;
+          --accent-purple: #6B3AC8;
+        }
+        .nav-link {
+          font-size: 1rem; font-weight: 450; color: #555;
+          text-decoration: none; transition: color 0.15s;
+        }
         .nav-link:hover { color: #111; }
-        .policy-section { border-top: 1px solid #e0dbd0; padding: 3rem 0; display: grid; grid-template-columns: 220px 1fr; gap: 3rem; }
+        .policy-section {
+          border-top: 1px solid var(--border);
+          padding: 3.5rem 0;
+          display: grid;
+          grid-template-columns: 220px 1fr;
+          gap: 3.5rem;
+        }
         @media(max-width:700px) { .policy-section { grid-template-columns: 1fr; gap: 1.5rem; } }
       `}</style>
 
-      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(245,243,238,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #e0dbd0", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2rem" }}>
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.55rem", textDecoration: "none" }}>
-          <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: "50%" }} />
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.82rem", color: "#111" }}>hyphertext</span>
+      {/* ── NAV ── */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        background: "rgba(244,242,237,0.94)", backdropFilter: "blur(14px)",
+        borderBottom: "1px solid var(--border)",
+        height: "62px", display: "flex", alignItems: "center",
+        justifyContent: "space-between", padding: "0 2.5rem"
+      }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.65rem", textDecoration: "none" }}>
+          <Image src="/logo.png" alt="Hyphertext" width={34} height={34} style={{ borderRadius: "50%" }} />
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "1rem", color: "#111", letterSpacing: "0.01em", fontWeight: 400 }}>
+            hyphertext
+          </span>
         </Link>
-        <div style={{ display: "flex", gap: "1.75rem", alignItems: "center" }}>
-          <Link href="/about" className="nav-link">About</Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "2.25rem" }}>
           <Link href="/terms" className="nav-link">Terms</Link>
+          <Link href="/auth" style={{
+            background: "#111", color: "#F4F2ED",
+            padding: "0.5rem 1.3rem", borderRadius: "4px",
+            fontSize: "0.92rem", fontWeight: 500, textDecoration: "none"
+          }}>
+            Get started →
+          </Link>
         </div>
       </nav>
 
-      {/* Header */}
-      <section style={{ borderBottom: "1px solid #e0dbd0" }}>
-        <div style={{ background: "#111", padding: "0.55rem 2rem" }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", textTransform: "uppercase" }}>hyphertext · legal</span>
+      {/* ── HEADER ── */}
+      <section style={{ borderBottom: "1px solid var(--border)" }}>
+        <div style={{ background: "#111", padding: "0.55rem 2.5rem" }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.65rem", color: "rgba(255,255,255,0.32)", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 400 }}>
+            hyphertext · legal
+          </span>
         </div>
-        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "5rem 2rem 4rem" }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#bbb", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "1.5rem" }}>privacy policy</div>
-          <h1 style={{ fontSize: "clamp(2.5rem, 5vw, 4rem)", fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.04em", color: "#111", marginBottom: "1.5rem" }}>
+        <div style={{ maxWidth: "960px", margin: "0 auto", padding: "5.5rem 2.5rem 4.5rem" }}>
+          <div style={{
+            fontFamily: "'DM Mono', monospace", fontSize: "0.78rem", fontWeight: 500,
+            color: "var(--accent)", letterSpacing: "0.08em", textTransform: "uppercase",
+            marginBottom: "2rem", display: "flex", alignItems: "center", gap: "0.6rem"
+          }}>
+            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "var(--accent)", display: "inline-block" }} />
+            privacy policy
+          </div>
+          <h1 style={{ fontSize: "clamp(2.5rem, 5vw, 4.2rem)", fontWeight: 300, lineHeight: 1.07, letterSpacing: "-0.04em", color: "#111", marginBottom: "1.75rem" }}>
             We take your privacy<br />
-            <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "#888" }}>seriously.</em>
+            <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 400, color: "#aaa" }}>seriously.</em>
           </h1>
-          <p style={{ fontSize: "0.92rem", color: "#777", fontWeight: 300, lineHeight: 1.85, maxWidth: "560px", marginBottom: "1.5rem" }}>
+          <p style={{ fontSize: "1rem", color: "#666", fontWeight: 300, lineHeight: 1.85, maxWidth: "580px", marginBottom: "1.75rem" }}>
             This policy describes what data we collect, how we use it, and how we protect it. We've written it in plain language because we believe you deserve to understand how your data is handled.
           </p>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.65rem", color: "#bbb", padding: "0.65rem 1rem", background: "#fff", border: "1px solid #e0dbd0", borderRadius: "4px", display: "inline-block" }}>
+          <div style={{
+            fontFamily: "'DM Mono', monospace", fontSize: "0.68rem", fontWeight: 400,
+            color: "#999", padding: "0.65rem 1rem",
+            background: "#fff", border: "1px solid var(--border)",
+            borderRadius: "4px", display: "inline-block"
+          }}>
             Last updated: June 2025 · Effective immediately
           </div>
         </div>
       </section>
 
-      {/* Content */}
-      <section style={{ maxWidth: "900px", margin: "0 auto", padding: "2rem 2rem 6rem" }}>
-        {SECTIONS.map((section) => (
+      {/* ── CONTENT ── */}
+      <section style={{ maxWidth: "960px", margin: "0 auto", padding: "1rem 2.5rem 6rem" }}>
+        {SECTIONS.map((section, idx) => (
           <div key={section.id} className="policy-section">
-            <div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#ccc", letterSpacing: "0.1em", marginBottom: "0.6rem" }}>{section.id}</div>
-              <h2 style={{ fontSize: "0.92rem", fontWeight: 500, color: "#444", lineHeight: 1.5, letterSpacing: "-0.01em" }}>{section.title}</h2>
+            <div style={{ paddingTop: "0.2rem" }}>
+              <div style={{
+                fontFamily: "'DM Mono', monospace", fontSize: "0.7rem", fontWeight: 500,
+                color: ACCENT_COLORS[idx], letterSpacing: "0.08em",
+                marginBottom: "0.6rem", display: "flex", alignItems: "center", gap: "0.4rem"
+              }}>
+                <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: ACCENT_COLORS[idx], display: "inline-block", flexShrink: 0 }} />
+                {section.id}
+              </div>
+              <h2 style={{ fontSize: "0.95rem", fontWeight: 500, color: "#333", lineHeight: 1.5, letterSpacing: "-0.01em" }}>
+                {section.title}
+              </h2>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
               {section.content.map((item) => (
                 <div key={item.heading}>
-                  <h3 style={{ fontSize: "0.88rem", fontWeight: 500, color: "#111", marginBottom: "0.4rem" }}>{item.heading}</h3>
-                  <p style={{ fontSize: "0.87rem", color: "#666", fontWeight: 300, lineHeight: 1.85 }}>{item.body}</p>
+                  <h3 style={{ fontSize: "0.9rem", fontWeight: 500, color: "#111", marginBottom: "0.4rem" }}>{item.heading}</h3>
+                  <p style={{ fontSize: "0.88rem", color: "#666", fontWeight: 300, lineHeight: 1.85 }}>{item.body}</p>
                 </div>
               ))}
             </div>
@@ -150,33 +209,53 @@ export default function PrivacyPage() {
         ))}
 
         {/* Contact */}
-        <div style={{ borderTop: "1px solid #e0dbd0", paddingTop: "3rem", display: "grid", gridTemplateColumns: "220px 1fr", gap: "3rem" }}>
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: "3.5rem", display: "grid", gridTemplateColumns: "220px 1fr", gap: "3.5rem" }}>
           <div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#ccc", letterSpacing: "0.1em", marginBottom: "0.6rem" }}>contact</div>
-            <h2 style={{ fontSize: "0.92rem", fontWeight: 500, color: "#444" }}>Questions?</h2>
+            <div style={{
+              fontFamily: "'DM Mono', monospace", fontSize: "0.7rem", fontWeight: 500,
+              color: "var(--accent-purple)", letterSpacing: "0.08em",
+              marginBottom: "0.6rem", display: "flex", alignItems: "center", gap: "0.4rem"
+            }}>
+              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--accent-purple)", display: "inline-block" }} />
+              contact
+            </div>
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 500, color: "#333" }}>Questions?</h2>
           </div>
           <div>
-            <p style={{ fontSize: "0.87rem", color: "#666", fontWeight: 300, lineHeight: 1.85, marginBottom: "1rem" }}>
+            <p style={{ fontSize: "0.88rem", color: "#666", fontWeight: 300, lineHeight: 1.85, marginBottom: "1rem" }}>
               For any privacy-related questions, requests, or concerns, please contact us at:
             </p>
-            <a href="mailto:support@hyphertext.com" style={{ fontSize: "1rem", color: "#111", textDecoration: "underline", textUnderlineOffset: "3px" }}>support@hyphertext.com</a>
-            <p style={{ fontSize: "0.82rem", color: "#aaa", fontWeight: 300, marginTop: "0.4rem" }}>Bengaluru, Karnataka, India · 560078</p>
+            <a href="mailto:support@hyphertext.com" style={{ fontSize: "1rem", color: "#111", textDecoration: "underline", textUnderlineOffset: "3px", textDecorationColor: "#ccc" }}>
+              support@hyphertext.com
+            </a>
+            <p style={{ fontSize: "0.84rem", color: "#aaa", fontWeight: 300, marginTop: "0.4rem" }}>Bengaluru, Karnataka, India · 560078</p>
           </div>
         </div>
       </section>
 
-      <footer style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "2rem" }}>
-        <div style={{ maxWidth: "900px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none" }}>
-            <Image src="/logo.png" alt="" width={20} height={20} style={{ borderRadius: "50%", opacity: 0.5 }} />
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.7rem", color: "rgba(255,255,255,0.25)" }}>hyphertext</span>
-          </Link>
-          <div style={{ display: "flex", gap: "1.5rem" }}>
-            {[["About", "/about"], ["Terms", "/terms"], ["Explore", "/explore"]].map(([l, h]) => (
-              <Link key={h} href={h} style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "rgba(255,255,255,0.2)", textDecoration: "none" }}>{l}</Link>
+      {/* ── FOOTER ── */}
+      <footer style={{ background: "#0a0a0a", borderTop: "1px solid #1f1f1f", padding: "3rem 2.5rem" }}>
+        <div style={{ maxWidth: "960px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.7rem" }}>
+            <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: "50%", opacity: 0.65 }} />
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.9rem", color: "rgba(255,255,255,0.45)", letterSpacing: "0.04em", fontWeight: 400 }}>
+              hyphertext
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: "2.25rem" }}>
+            {[["About", "/about"], ["Terms", "/terms"], ["Explore", "/explore"]].map(([label, href]) => (
+              <Link key={href} href={href}
+                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "0.88rem", color: "rgba(255,255,255,0.38)", textDecoration: "none", fontWeight: 400, transition: "color 0.15s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.72)")}
+                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.38)")}
+              >
+                {label}
+              </Link>
             ))}
           </div>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "rgba(255,255,255,0.15)" }}>© 2025 Hyphertext</span>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.8rem", color: "rgba(255,255,255,0.22)", fontWeight: 400 }}>
+            © 2025 Hyphertext · Bengaluru, India
+          </span>
         </div>
       </footer>
     </main>
