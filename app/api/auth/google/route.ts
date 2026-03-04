@@ -6,11 +6,8 @@ import { createSupabaseRequestClient } from '@/lib/supabase/server';
 // Initiates the Google OAuth flow via Supabase
 export async function GET(request: NextRequest) {
   try {
-    const host = request.headers.get('host');
-    const protocol = request.headers.get('x-forwarded-proto') ?? 'https';
-    const origin = `${protocol}://${host}`;
-
-    const { supabase } = createSupabaseRequestClient(request);
+    const { supabase, responseHeaders } = createSupabaseRequestClient(request);
+    const origin = request.headers.get('origin') ?? '';
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -27,7 +24,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error?.message ?? 'Could not initiate Google login' }, { status: 500 });
     }
 
-    return NextResponse.redirect(data.url);
+    // Redirect the browser to Google's OAuth consent screen
+    const response = NextResponse.redirect(data.url);
+
+    responseHeaders.getSetCookie?.()?.forEach((cookie) => {
+      response.headers.append('Set-Cookie', cookie);
+    });
+
+    return response;
   } catch (err) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
