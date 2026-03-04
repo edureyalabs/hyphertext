@@ -1,0 +1,195 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+
+export default function AboutPage() {
+  return (
+    <main style={{ background: "#F5F3EE", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", color: "#111" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@300;400&family=Playfair+Display:ital,wght@0,400;1,400;1,500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        ::selection { background: #111; color: #F5F3EE; }
+        .nav-link { font-size: 0.82rem; color: #777; text-decoration: none; transition: color 0.15s; }
+        .nav-link:hover { color: #111; }
+        .divider { height: 1px; background: #e0dbd0; }
+        .contact-link { color: #111; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #ccc; transition: text-decoration-color 0.15s; }
+        .contact-link:hover { text-decoration-color: #111; }
+      `}</style>
+
+      {/* Nav */}
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(245,243,238,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #e0dbd0", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2rem" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.55rem", textDecoration: "none" }}>
+          <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: "50%" }} />
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.82rem", color: "#111", letterSpacing: "0.01em" }}>hyphertext</span>
+        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "1.75rem" }}>
+          <Link href="/explore" className="nav-link">Explore</Link>
+          <Link href="/auth" style={{ background: "#111", color: "#F5F3EE", padding: "0.38rem 1rem", borderRadius: "3px", fontSize: "0.8rem", textDecoration: "none" }}>Get started →</Link>
+        </div>
+      </nav>
+
+      {/* Header */}
+      <section style={{ borderBottom: "1px solid #e0dbd0" }}>
+        <div style={{ background: "#111", padding: "0.55rem 2rem" }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            hyphertext · about us
+          </span>
+        </div>
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "6rem 2rem 5rem" }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#bbb", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "1.5rem" }}>
+            our story
+          </div>
+          <h1 style={{ fontSize: "clamp(3rem, 6vw, 5rem)", fontWeight: 300, lineHeight: 1.05, letterSpacing: "-0.04em", color: "#111", marginBottom: "2rem" }}>
+            We believe the web<br />
+            should be for{" "}
+            <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 400, color: "#888" }}>
+              everyone.
+            </em>
+          </h1>
+          <p style={{ fontSize: "1.15rem", color: "#666", fontWeight: 300, lineHeight: 1.85, maxWidth: "620px" }}>
+            Hyphertext was built on a simple conviction: publishing on the web has been needlessly complicated for far too long. We're here to fix that.
+          </p>
+        </div>
+      </section>
+
+      {/* Manifesto */}
+      <section style={{ borderBottom: "1px solid #e0dbd0" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "5rem 2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: "4rem", alignItems: "start" }}>
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#bbb", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "1rem" }}>what we believe</div>
+              <div style={{ width: "32px", height: "2px", background: "#111" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+              {[
+                { title: "HTML is the greatest creative medium ever made.", body: "A single file of HTML, CSS, and JS can be a game, a gallery, an RSVP form, a resume, a micro-app, or anything else imaginable. The browser is the most universal runtime in history. We think that's worth celebrating." },
+                { title: "The barrier to publishing has been too high for too long.", body: "Setting up a server, configuring deployment, buying a domain, managing a CMS — none of that should stand between someone with an idea and the world seeing it. We stripped all of that away." },
+                { title: "AI and the web were made for each other.", body: "Agentic coding is the new paradigm. When an AI can write complete, functional HTML from a description, and that file can be live on the internet in seconds — the act of creation changes entirely. Hyphertext is where that happens." },
+                { title: "Vibe coding shouldn't be just for developers.", body: "Teachers, designers, artists, founders, students, couples planning weddings — everyone has ideas worth building. Hyphertext is the platform where anyone can become a web creator." },
+              ].map((item) => (
+                <div key={item.title}>
+                  <h3 style={{ fontSize: "1.05rem", fontWeight: 500, color: "#111", marginBottom: "0.6rem", letterSpacing: "-0.01em", lineHeight: 1.4 }}>{item.title}</h3>
+                  <p style={{ fontSize: "0.9rem", color: "#777", fontWeight: 300, lineHeight: 1.85 }}>{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* What is hyphertext */}
+      <section style={{ background: "#111", color: "#F5F3EE", borderBottom: "1px solid #222" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "5rem 2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: "4rem" }}>
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "rgba(255,255,255,0.25)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "1rem" }}>the platform</div>
+              <div style={{ width: "32px", height: "2px", background: "rgba(255,255,255,0.2)" }} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: "2rem", fontWeight: 300, letterSpacing: "-0.03em", lineHeight: 1.2, marginBottom: "1.5rem" }}>What is Hyphertext?</h2>
+              <p style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.5)", fontWeight: 300, lineHeight: 1.9, marginBottom: "1.5rem" }}>
+                Hyphertext is a hyper-fast HTML hosting platform with an AI studio built in. Describe what you want to build, and the AI writes the HTML. Paste existing HTML to host it instantly. Edit live. Publish in one click.
+              </p>
+              <p style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.5)", fontWeight: 300, lineHeight: 1.9, marginBottom: "2.5rem" }}>
+                Every page gets a real URL. Free accounts get one live site forever. Pro accounts can publish unlimited sites simultaneously — perfect for creators, educators, agencies, and anyone building for clients.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px", background: "rgba(255,255,255,0.08)", borderRadius: "6px", overflow: "hidden" }}>
+                {[
+                  ["AI Studio", "Describe. Generate. Iterate."],
+                  ["Instant Hosting", "Live URL in under 10 seconds."],
+                  ["HTML Import", "Paste your code, we host it."],
+                  ["Public Profiles", "Share your creations with the world."],
+                ].map(([title, desc]) => (
+                  <div key={title} style={{ padding: "1.25rem 1.5rem", background: "rgba(255,255,255,0.03)" }}>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 500, color: "rgba(255,255,255,0.7)", marginBottom: "0.3rem" }}>{title}</div>
+                    <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.3)", fontWeight: 300 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Company info */}
+      <section style={{ borderBottom: "1px solid #e0dbd0" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "5rem 2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: "4rem" }}>
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#bbb", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "1rem" }}>company</div>
+              <div style={{ width: "32px", height: "2px", background: "#111" }} />
+            </div>
+            <div>
+              <p style={{ fontSize: "0.95rem", color: "#666", fontWeight: 300, lineHeight: 1.9, marginBottom: "1.5rem" }}>
+                Hyphertext is an independent product built and operated from Bengaluru, India. We're a small, focused team obsessed with the idea that the next generation of web publishing should be instant, effortless, and open to everyone.
+              </p>
+              <p style={{ fontSize: "0.95rem", color: "#666", fontWeight: 300, lineHeight: 1.9 }}>
+                We're early and moving fast. If you have feedback, ideas, or just want to say hello — we genuinely want to hear from you.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact */}
+      <section style={{ borderBottom: "1px solid #e0dbd0", background: "#FAFAF7" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "5rem 2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: "4rem" }}>
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#bbb", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "1rem" }}>contact</div>
+              <div style={{ width: "32px", height: "2px", background: "#111" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+              <div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "#bbb", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.5rem" }}>email</div>
+                <a href="mailto:support@hyphertext.com" className="contact-link" style={{ fontSize: "1.05rem", fontWeight: 400, color: "#111" }}>
+                  support@hyphertext.com
+                </a>
+                <p style={{ fontSize: "0.82rem", color: "#aaa", fontWeight: 300, marginTop: "0.35rem" }}>For support, feedback, partnerships, or anything else.</p>
+              </div>
+              <div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "#bbb", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.5rem" }}>location</div>
+                <div style={{ fontSize: "1rem", fontWeight: 400, color: "#333" }}>Bengaluru, Karnataka</div>
+                <div style={{ fontSize: "0.88rem", color: "#888", fontWeight: 300, marginTop: "0.2rem" }}>India · 560078</div>
+              </div>
+              <div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "#bbb", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.5rem" }}>response time</div>
+                <div style={{ fontSize: "0.88rem", color: "#666", fontWeight: 300, lineHeight: 1.7 }}>We aim to reply within 24–48 hours on business days. We read every message.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section>
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "5rem 2rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "2rem", flexWrap: "wrap" }}>
+          <div>
+            <h2 style={{ fontSize: "2rem", fontWeight: 300, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.5rem" }}>Ready to build?</h2>
+            <p style={{ fontSize: "0.88rem", color: "#888", fontWeight: 300 }}>Your first site is free, forever.</p>
+          </div>
+          <Link href="/auth" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", background: "#111", color: "#F5F3EE", padding: "0.85rem 1.8rem", borderRadius: "3px", fontSize: "0.9rem", fontWeight: 500, textDecoration: "none", letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
+            Get started free →
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "2rem" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.55rem", textDecoration: "none" }}>
+            <Image src="/logo.png" alt="Hyphertext" width={20} height={20} style={{ borderRadius: "50%", opacity: 0.5 }} />
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.72rem", color: "rgba(255,255,255,0.25)" }}>hyphertext</span>
+          </Link>
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            {[["Privacy", "/privacy"], ["Terms", "/terms"], ["Explore", "/explore"]].map(([label, href]) => (
+              <Link key={href} href={href} style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "rgba(255,255,255,0.2)", textDecoration: "none" }}>{label}</Link>
+            ))}
+          </div>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "rgba(255,255,255,0.15)" }}>© 2025 Hyphertext</span>
+        </div>
+      </footer>
+    </main>
+  );
+}

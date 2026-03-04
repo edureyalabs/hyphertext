@@ -1,0 +1,187 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+
+const SECTIONS = [
+  {
+    id: "01",
+    title: "Acceptance of terms",
+    content: [
+      { heading: "Agreement", body: "By accessing or using Hyphertext (\"the Service\"), you agree to be bound by these Terms of Service. If you do not agree, you must not use the Service." },
+      { heading: "Age requirement", body: "You must be at least 13 years old to use Hyphertext. By using the Service, you represent that you meet this requirement." },
+      { heading: "Updates", body: "We may update these terms from time to time. We'll notify you of significant changes. Continued use after changes constitutes acceptance." },
+    ],
+  },
+  {
+    id: "02",
+    title: "Your account",
+    content: [
+      { heading: "Account responsibility", body: "You are responsible for maintaining the confidentiality of your credentials and for all activity that occurs under your account. Notify us immediately at support@hyphertext.com if you suspect unauthorised access." },
+      { heading: "Accurate information", body: "You agree to provide accurate, current, and complete information when creating your account and to keep it updated." },
+      { heading: "One account per person", body: "Each person may maintain one account. Creating multiple accounts to circumvent restrictions is prohibited." },
+    ],
+  },
+  {
+    id: "03",
+    title: "Content and conduct",
+    content: [
+      { heading: "Your content", body: "You retain ownership of the content you create, upload, or publish on Hyphertext. By publishing content, you grant Hyphertext a non-exclusive, royalty-free licence to host, display, and serve that content as part of operating the Service." },
+      { heading: "Prohibited content", body: "You may not publish or upload content that is illegal under Indian or applicable law; that infringes copyright, trademark, or other intellectual property rights; that contains malware, viruses, or malicious code; that constitutes spam, phishing, or deceptive practices; that harasses, threatens, or harms individuals; or that is sexually explicit, violent, or harmful to minors." },
+      { heading: "Your responsibility", body: "You are solely responsible for the content you publish. Hyphertext is a platform, not an author or publisher of user content. We reserve the right to remove any content that violates these terms without notice." },
+      { heading: "Respectful use", body: "You agree not to use the Service to conduct illegal activities, violate others' rights, or interfere with the normal operation of the platform." },
+    ],
+  },
+  {
+    id: "04",
+    title: "Hosting and publishing",
+    content: [
+      { heading: "Free tier", body: "Free accounts may publish one site simultaneously. The site remains live as long as the account is active and in good standing." },
+      { heading: "Pro tier", body: "Pro accounts may publish unlimited sites simultaneously for the duration of the paid subscription. When a Pro subscription expires, the account reverts to Free tier limits. Excess sites are suspended until the subscription is renewed." },
+      { heading: "Service availability", body: "We aim for high availability but do not guarantee uninterrupted access. We may perform maintenance, upgrades, or modifications that temporarily affect the Service." },
+      { heading: "No guaranteed uptime SLA", body: "Hyphertext is provided on a best-effort basis. We do not offer uptime SLAs or compensation for downtime for free or Pro accounts at this time." },
+    ],
+  },
+  {
+    id: "05",
+    title: "Payments and subscriptions",
+    content: [
+      { heading: "Pricing", body: "Subscription prices are displayed at checkout. All prices are in USD unless otherwise stated. Payments are processed by Razorpay and are subject to their terms." },
+      { heading: "No automatic renewal", body: "Pro subscriptions are monthly but do not auto-renew. You receive a reminder before expiry and must renew manually." },
+      { heading: "Refunds", body: "We do not offer refunds for subscription payments once processed, except where required by applicable law. If you believe a charge was made in error, contact us at support@hyphertext.com within 7 days." },
+      { heading: "Token purchases", body: "AI tokens purchased are non-refundable and do not expire. Token pricing may change over time; changes do not affect already-purchased tokens." },
+    ],
+  },
+  {
+    id: "06",
+    title: "Intellectual property",
+    content: [
+      { heading: "Our platform", body: "Hyphertext, its design, codebase, and branding are the intellectual property of the Hyphertext team. You may not copy, modify, or redistribute them without express written permission." },
+      { heading: "Your content", body: "We make no claim to the pages, code, images, or content you create on Hyphertext. Your creative output is yours." },
+      { heading: "AI-generated content", body: "Content generated by the AI agent on your behalf is provided to you. The ownership and responsibility for AI-generated content rests with you as the user who directed its creation." },
+    ],
+  },
+  {
+    id: "07",
+    title: "Termination",
+    content: [
+      { heading: "By you", body: "You may delete your account at any time by contacting support@hyphertext.com. Deletion is permanent and removes your data in accordance with our Privacy Policy." },
+      { heading: "By us", body: "We may suspend or terminate your account if you violate these Terms, engage in fraudulent activity, or if continued operation poses a risk to other users or the platform. We will make reasonable efforts to notify you unless legally prevented from doing so." },
+      { heading: "Effect of termination", body: "Upon termination, your pages will be taken offline and your access to the Service will cease. Provisions of these Terms that by nature should survive termination — including intellectual property, disclaimers, and limitation of liability — will survive." },
+    ],
+  },
+  {
+    id: "08",
+    title: "Disclaimers and limitation of liability",
+    content: [
+      { heading: "As-is service", body: "Hyphertext is provided \"as is\" and \"as available\" without warranties of any kind, express or implied. We do not warrant that the Service will be error-free, secure, or available at all times." },
+      { heading: "Limitation of liability", body: "To the maximum extent permitted by law, Hyphertext and its team shall not be liable for any indirect, incidental, consequential, or punitive damages arising from your use of the Service, even if advised of the possibility of such damages." },
+      { heading: "Maximum liability", body: "Our total liability to you for any claim arising from your use of Hyphertext shall not exceed the amount you paid us in the three months preceding the claim." },
+    ],
+  },
+  {
+    id: "09",
+    title: "Governing law",
+    content: [
+      { heading: "Jurisdiction", body: "These Terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of courts in Bengaluru, Karnataka, India." },
+      { heading: "Dispute resolution", body: "Before initiating legal proceedings, we encourage you to contact us at support@hyphertext.com. We'll make every reasonable effort to resolve disputes amicably." },
+    ],
+  },
+];
+
+export default function TermsPage() {
+  return (
+    <main style={{ background: "#F5F3EE", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif", color: "#111" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&family=Playfair+Display:ital,wght@1,400&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        ::selection { background: #111; color: #F5F3EE; }
+        .nav-link { font-size: 0.82rem; color: #777; text-decoration: none; transition: color 0.15s; }
+        .nav-link:hover { color: #111; }
+        .policy-section { border-top: 1px solid #e0dbd0; padding: 3rem 0; display: grid; grid-template-columns: 220px 1fr; gap: 3rem; }
+        @media(max-width:700px) { .policy-section { grid-template-columns: 1fr; gap: 1.5rem; } }
+      `}</style>
+
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(245,243,238,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #e0dbd0", height: "52px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2rem" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.55rem", textDecoration: "none" }}>
+          <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: "50%" }} />
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.82rem", color: "#111" }}>hyphertext</span>
+        </Link>
+        <div style={{ display: "flex", gap: "1.75rem", alignItems: "center" }}>
+          <Link href="/about" className="nav-link">About</Link>
+          <Link href="/privacy" className="nav-link">Privacy</Link>
+        </div>
+      </nav>
+
+      {/* Header */}
+      <section style={{ borderBottom: "1px solid #e0dbd0" }}>
+        <div style={{ background: "#111", padding: "0.55rem 2rem" }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.1em", textTransform: "uppercase" }}>hyphertext · legal</span>
+        </div>
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "5rem 2rem 4rem" }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#bbb", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "1.5rem" }}>terms of service</div>
+          <h1 style={{ fontSize: "clamp(2.5rem, 5vw, 4rem)", fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.04em", color: "#111", marginBottom: "1.5rem" }}>
+            Clear rules for a<br />
+            <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", color: "#888" }}>fair platform.</em>
+          </h1>
+          <p style={{ fontSize: "0.92rem", color: "#777", fontWeight: 300, lineHeight: 1.85, maxWidth: "560px", marginBottom: "1.5rem" }}>
+            These terms govern your use of Hyphertext. We've written them to be as clear and readable as possible. If you have questions, email us at support@hyphertext.com.
+          </p>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.65rem", color: "#bbb", padding: "0.65rem 1rem", background: "#fff", border: "1px solid #e0dbd0", borderRadius: "4px", display: "inline-block" }}>
+            Last updated: June 2025 · Effective immediately
+          </div>
+        </div>
+      </section>
+
+      {/* Content */}
+      <section style={{ maxWidth: "900px", margin: "0 auto", padding: "2rem 2rem 6rem" }}>
+        {SECTIONS.map((section) => (
+          <div key={section.id} className="policy-section">
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#ccc", letterSpacing: "0.1em", marginBottom: "0.6rem" }}>{section.id}</div>
+              <h2 style={{ fontSize: "0.92rem", fontWeight: 500, color: "#444", lineHeight: 1.5, letterSpacing: "-0.01em" }}>{section.title}</h2>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              {section.content.map((item) => (
+                <div key={item.heading}>
+                  <h3 style={{ fontSize: "0.88rem", fontWeight: 500, color: "#111", marginBottom: "0.4rem" }}>{item.heading}</h3>
+                  <p style={{ fontSize: "0.87rem", color: "#666", fontWeight: 300, lineHeight: 1.85 }}>{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Contact */}
+        <div style={{ borderTop: "1px solid #e0dbd0", paddingTop: "3rem", display: "grid", gridTemplateColumns: "220px 1fr", gap: "3rem" }}>
+          <div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "#ccc", letterSpacing: "0.1em", marginBottom: "0.6rem" }}>contact</div>
+            <h2 style={{ fontSize: "0.92rem", fontWeight: 500, color: "#444" }}>Questions?</h2>
+          </div>
+          <div>
+            <p style={{ fontSize: "0.87rem", color: "#666", fontWeight: 300, lineHeight: 1.85, marginBottom: "1rem" }}>
+              For questions about these Terms, please reach out:
+            </p>
+            <a href="mailto:support@hyphertext.com" style={{ fontSize: "1rem", color: "#111", textDecoration: "underline", textUnderlineOffset: "3px" }}>support@hyphertext.com</a>
+            <p style={{ fontSize: "0.82rem", color: "#aaa", fontWeight: 300, marginTop: "0.4rem" }}>Bengaluru, Karnataka, India · 560078</p>
+          </div>
+        </div>
+      </section>
+
+      <footer style={{ background: "#0a0a0a", borderTop: "1px solid #1a1a1a", padding: "2rem" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none" }}>
+            <Image src="/logo.png" alt="" width={20} height={20} style={{ borderRadius: "50%", opacity: 0.5 }} />
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.7rem", color: "rgba(255,255,255,0.25)" }}>hyphertext</span>
+          </Link>
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            {[["About", "/about"], ["Privacy", "/privacy"], ["Explore", "/explore"]].map(([l, h]) => (
+              <Link key={h} href={h} style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.62rem", color: "rgba(255,255,255,0.2)", textDecoration: "none" }}>{l}</Link>
+            ))}
+          </div>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.6rem", color: "rgba(255,255,255,0.15)" }}>© 2025 Hyphertext</span>
+        </div>
+      </footer>
+    </main>
+  );
+}
