@@ -92,9 +92,9 @@ export interface Subscription {
 }
 
 export async function getSession(): Promise<Session | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-  return { user: { id: session.user.id, email: session.user.email ?? '' } };
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  return { user: { id: user.id, email: user.email ?? '' } };
 }
 
 export async function signOut() {
