@@ -10,18 +10,32 @@ import { supabase } from '@/lib/supabase';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
-  const [user, setUser]             = useState<ApiUser | null>(null);
-  const [username, setUsername]     = useState<string | null>(null);
-  const [loading, setLoading]       = useState(true);
+  const [user, setUser]               = useState<ApiUser | null>(null);
+  const [username, setUsername]       = useState<string | null>(null);
+  const [loading, setLoading]         = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
   const [signingOut, setSigningOut]   = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getSession().then((session) => {
-      if (!session) { router.replace('/auth'); return; }
+    const checkSession = async () => {
+      let session = await getSession();
+
+      // After Google OAuth the server sets the cookie, but the Supabase
+      // browser client can lag by a few hundred ms reading it on first load.
+      // One retry after a short wait reliably resolves the race condition.
+      if (!session) {
+        await new Promise(r => setTimeout(r, 600));
+        session = await getSession();
+      }
+
+      if (!session) {
+        router.replace('/auth');
+        return;
+      }
+
       setUser(session.user);
-      // Fetch username for "View profile" link
+
       supabase
         .from('profiles')
         .select('username')
@@ -30,13 +44,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .then(({ data }) => {
           if (data?.username) setUsername(data.username);
         });
+
       setLoading(false);
-    });
+    };
+
+    checkSession();
   }, [router]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setAccountOpen(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setAccountOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -133,7 +152,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div style={{ position: 'relative' }} ref={dropdownRef}>
-          <button className={`account-btn${accountOpen ? ' open' : ''}`} onClick={() => setAccountOpen(v => !v)} aria-label="Account menu">
+          <button
+            className={`account-btn${accountOpen ? ' open' : ''}`}
+            onClick={() => setAccountOpen(v => !v)}
+            aria-label="Account menu"
+          >
             <div className="avatar">{initials}</div>
             <span style={{ fontSize: '0.78rem', color: '#555', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.email?.split('@')[0]}
