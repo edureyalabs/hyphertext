@@ -4,9 +4,33 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { getSession, signIn, signUp, forgotPassword } from '@/lib/api';
+import { getSession, signIn, signUp, forgotPassword, signInWithGoogle } from '@/lib/api';
 
 type AuthView = 'sign_in' | 'sign_up' | 'forgot_password' | 'check_email';
+
+// Google "G" SVG icon — no external dependency needed
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
+        fill="#4285F4"
+      />
+      <path
+        d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"
+        fill="#34A853"
+      />
+      <path
+        d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
 
 function AuthContent() {
   const router = useRouter();
@@ -15,6 +39,7 @@ function AuthContent() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -64,6 +89,11 @@ function AuthContent() {
     }
   };
 
+  const handleGoogleSignIn = () => {
+    setGoogleLoading(true);
+    signInWithGoogle(); // redirects browser — page will navigate away
+  };
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: '#f8f7f4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -82,10 +112,13 @@ function AuthContent() {
 
   const subtitles: Record<AuthView, string> = {
     sign_in: 'Sign in to build and publish HTML pages instantly.',
-    sign_up: 'Get started — it\'s free.',
-    forgot_password: 'Enter your email and we\'ll send a reset link.',
+    sign_up: "Get started — it's free.",
+    forgot_password: "Enter your email and we'll send a reset link.",
     check_email: 'We sent a confirmation link to ' + email + '. Click it to activate your account.',
   };
+
+  // Google button is shown on sign_in and sign_up views only
+  const showGoogle = view === 'sign_in' || view === 'sign_up';
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8f7f4', fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", color: '#111' }}>
@@ -124,6 +157,43 @@ function AuthContent() {
         }
         .submit-btn:hover:not(:disabled) { background: #222; }
         .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .google-btn {
+          width: 100%;
+          background: #fff;
+          color: #111;
+          border: 1px solid #ddd;
+          padding: 0.65rem 1rem;
+          font-size: 0.875rem;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 400;
+          letter-spacing: 0.02em;
+          cursor: pointer;
+          border-radius: 3px;
+          transition: background 0.15s, border-color 0.15s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.6rem;
+        }
+        .google-btn:hover:not(:disabled) { background: #f5f5f5; border-color: #ccc; }
+        .google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .divider {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin: 1.25rem 0;
+          color: #ccc;
+          font-size: 0.75rem;
+          font-family: 'DM Mono', monospace;
+        }
+        .divider::before, .divider::after {
+          content: '';
+          flex: 1;
+          height: 1px;
+          background: #e8e6e1;
+        }
 
         .text-link {
           background: none;
@@ -176,6 +246,33 @@ function AuthContent() {
             </div>
           ) : (
             <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '2rem' }}>
+
+              {/* Google OAuth button — only on sign_in / sign_up */}
+              {showGoogle && (
+                <>
+                  <button
+                    className="google-btn"
+                    onClick={handleGoogleSignIn}
+                    disabled={googleLoading || submitting}
+                    type="button"
+                  >
+                    {googleLoading ? (
+                      <>
+                        <div style={{ width: '16px', height: '16px', border: '1.5px solid #ddd', borderTopColor: '#555', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <GoogleIcon />
+                        Continue with Google
+                      </>
+                    )}
+                  </button>
+
+                  <div className="divider">or</div>
+                </>
+              )}
+
               <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', fontSize: '0.78rem', color: '#555', marginBottom: '0.4rem' }}>
@@ -226,7 +323,7 @@ function AuthContent() {
                   </div>
                 )}
 
-                <button type="submit" className="submit-btn" disabled={submitting}>
+                <button type="submit" className="submit-btn" disabled={submitting || googleLoading}>
                   {submitting ? 'Please wait...' : view === 'sign_in' ? 'Sign in' : view === 'sign_up' ? 'Create account' : 'Send reset link'}
                 </button>
               </form>

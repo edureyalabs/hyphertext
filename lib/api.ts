@@ -307,3 +307,8 @@ export async function updatePassword(newPassword: string): Promise<{ error: stri
   if (error) return { error: error.message };
   return { error: null };
 }
+
+
+export function signInWithGoogle() {
+  window.location.href = '/api/auth/google';
+}
