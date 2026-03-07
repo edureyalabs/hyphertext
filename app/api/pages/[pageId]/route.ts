@@ -1,3 +1,4 @@
+// app/api/pages/[pageId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -55,6 +56,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const body = await request.json();
 
+    // Check hosting limit when publishing for the first time
     if (body.is_published === true && !existing.is_published) {
       const { data: canPublish } = await supabase.rpc('check_can_publish', {
         p_user_id: user.id,
@@ -72,7 +74,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       }
     }
 
-    const allowed = ['title', 'html_content', 'is_published', 'html_summary'] as const;
+    const allowed = [
+      'title',
+      'html_content',
+      'is_published',
+      'html_summary',
+      'caption',
+      'show_on_profile',
+      'inference_mode',
+    ] as const;
+
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) updates[key] = body[key];

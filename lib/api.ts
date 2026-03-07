@@ -1,3 +1,4 @@
+// lib/api.ts
 import { supabase } from '@/lib/supabase';
 
 export interface ApiUser {
@@ -20,6 +21,9 @@ export interface Page {
   html_summary: string;
   component_map: any[];
   inference_mode: 'economy' | 'speed' | null;
+  // Profile feed fields (added via migration)
+  caption: string | null;
+  show_on_profile: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -92,6 +96,17 @@ export interface Subscription {
   price_usd: number;
 }
 
+// Fields that can be updated on a page
+export interface PageUpdates {
+  title?: string;
+  html_content?: string;
+  is_published?: boolean;
+  html_summary?: string;
+  caption?: string | null;
+  show_on_profile?: boolean;
+  inference_mode?: 'economy' | 'speed' | null;
+}
+
 export async function getSession(): Promise<Session | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -109,7 +124,11 @@ export async function listPages(): Promise<Page[]> {
   return data.pages ?? [];
 }
 
-export async function createPage(title: string, html_content: string, page_source: 'agent' | 'import' = 'agent'): Promise<{ page: Page | null; error: string | null }> {
+export async function createPage(
+  title: string,
+  html_content: string,
+  page_source: 'agent' | 'import' = 'agent',
+): Promise<{ page: Page | null; error: string | null }> {
   const res = await fetch('/api/pages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -127,14 +146,31 @@ export async function getPage(pageId: string): Promise<Page | null> {
   return data.page ?? null;
 }
 
-export async function updatePage(pageId: string, updates: Partial<Pick<Page, 'title' | 'html_content' | 'is_published' | 'html_summary'>>): Promise<{ page: Page | null; error: string | null; code?: string; site_limit?: number; tier?: string }> {
+export async function updatePage(
+  pageId: string,
+  updates: PageUpdates,
+): Promise<{
+  page: Page | null;
+  error: string | null;
+  code?: string;
+  site_limit?: number;
+  tier?: string;
+}> {
   const res = await fetch(`/api/pages/${pageId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   });
   const data = await res.json();
-  if (!res.ok) return { page: null, error: data.error ?? 'Failed to update', code: data.code, site_limit: data.site_limit, tier: data.tier };
+  if (!res.ok) {
+    return {
+      page: null,
+      error: data.error ?? 'Failed to update',
+      code: data.code,
+      site_limit: data.site_limit,
+      tier: data.tier,
+    };
+  }
   return { page: data.page, error: null };
 }
 
@@ -160,13 +196,9 @@ export async function sendMessage(
   inferenceMode?: 'economy' | 'speed',
 ): Promise<{ error: string | null }> {
   const body: Record<string, string> = { content };
-
-  // model_id is kept for any legacy callers but is ignored by the backend.
   // inference_mode is only meaningful on the first message — the backend
   // ignores it once pages.inference_mode is already persisted.
-  if (inferenceMode) {
-    body.inference_mode = inferenceMode;
-  }
+  if (inferenceMode) body.inference_mode = inferenceMode;
 
   const res = await fetch(`/api/pages/${pageId}/messages`, {
     method: 'POST',
@@ -190,7 +222,7 @@ export async function listAssets(pageId: string): Promise<PageAsset[]> {
 export async function uploadAsset(
   pageId: string,
   file: File,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
 ): Promise<{ asset: PageAsset | null; error: string | null }> {
   const formData = new FormData();
   formData.append('file', file);
@@ -223,7 +255,10 @@ export async function uploadAsset(
   });
 }
 
-export async function deleteAsset(pageId: string, assetId: string): Promise<{ error: string | null }> {
+export async function deleteAsset(
+  pageId: string,
+  assetId: string,
+): Promise<{ error: string | null }> {
   const res = await fetch(`/api/pages/${pageId}/assets/${assetId}`, { method: 'DELETE' });
   if (!res.ok) {
     const data = await res.json();
@@ -239,7 +274,10 @@ export async function getPageVersions(pageId: string): Promise<PageVersion[]> {
   return data.versions ?? [];
 }
 
-export async function syncPageCode(pageId: string, html_content: string): Promise<{ page: Page | null; error: string | null }> {
+export async function syncPageCode(
+  pageId: string,
+  html_content: string,
+): Promise<{ page: Page | null; error: string | null }> {
   const res = await fetch(`/api/pages/${pageId}/versions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -250,7 +288,10 @@ export async function syncPageCode(pageId: string, html_content: string): Promis
   return { page: data.page, error: null };
 }
 
-export async function revertPageVersion(pageId: string, version_id: string): Promise<{ page: Page | null; error: string | null }> {
+export async function revertPageVersion(
+  pageId: string,
+  version_id: string,
+): Promise<{ page: Page | null; error: string | null }> {
   const res = await fetch(`/api/pages/${pageId}/versions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -261,14 +302,19 @@ export async function revertPageVersion(pageId: string, version_id: string): Pro
   return { page: data.page, error: null };
 }
 
-export async function getSubscription(): Promise<{ subscription: Subscription | null; tiers: SubscriptionTier[] }> {
+export async function getSubscription(): Promise<{
+  subscription: Subscription | null;
+  tiers: SubscriptionTier[];
+}> {
   const res = await fetch('/api/subscription');
   if (!res.ok) return { subscription: null, tiers: [] };
   const data = await res.json();
   return { subscription: data.subscription, tiers: data.tiers ?? [] };
 }
 
-export async function createSubscriptionOrder(tier: string): Promise<{ order: any; razorpayKeyId: string; amountUSD: number; error?: string }> {
+export async function createSubscriptionOrder(
+  tier: string,
+): Promise<{ order: any; razorpayKeyId: string; amountUSD: number; error?: string }> {
   const res = await fetch('/api/subscription', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -279,24 +325,41 @@ export async function createSubscriptionOrder(tier: string): Promise<{ order: an
   return { order: data.order, razorpayKeyId: data.razorpayKeyId, amountUSD: data.amountUSD };
 }
 
-export async function verifyAndUpgradeSubscription(tier: string, razorpay_order_id: string, razorpay_payment_id: string, razorpay_signature: string): Promise<{ success: boolean; error?: string }> {
+export async function verifyAndUpgradeSubscription(
+  tier: string,
+  razorpay_order_id: string,
+  razorpay_payment_id: string,
+  razorpay_signature: string,
+): Promise<{ success: boolean; error?: string }> {
   const res = await fetch('/api/subscription', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'verify_and_upgrade', tier, razorpay_order_id, razorpay_payment_id, razorpay_signature }),
+    body: JSON.stringify({
+      action: 'verify_and_upgrade',
+      tier,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    }),
   });
   const data = await res.json();
   if (!res.ok) return { success: false, error: data.error };
   return { success: true };
 }
 
-export async function signIn(email: string, password: string): Promise<{ error: string | null }> {
+export async function signIn(
+  email: string,
+  password: string,
+): Promise<{ error: string | null }> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
   return { error: null };
 }
 
-export async function signUp(email: string, password: string): Promise<{ requiresConfirmation: boolean; error: string | null }> {
+export async function signUp(
+  email: string,
+  password: string,
+): Promise<{ requiresConfirmation: boolean; error: string | null }> {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return { requiresConfirmation: false, error: error.message };
   const requiresConfirmation = !data.session;
