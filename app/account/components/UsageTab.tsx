@@ -19,13 +19,12 @@ interface Wallet {
 
 interface Transaction {
   id: string;
-  amount: number;                // legacy token amount
+  amount: number;
   transaction_type: 'credit' | 'debit';
   description: string;
-  balance_after: number;         // legacy token balance
+  balance_after: number;
   reference_id: string | null;
   created_at: string;
-  // dollar fields (may be null on old rows)
   dollar_amount: number | null;
   dollar_balance_after: number | null;
   model_id: string | null;
@@ -34,9 +33,9 @@ interface Transaction {
 }
 
 export default function UsageTab({ userId }: UsageTabProps) {
-  const [wallet, setWallet]           = useState<Wallet | null>(null);
+  const [wallet, setWallet]             = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]           = useState(true);
 
   useEffect(() => {
     if (!userId) return;
@@ -56,17 +55,18 @@ export default function UsageTab({ userId }: UsageTabProps) {
         .single();
 
       if (w) {
+        const row = w as Wallet;
         setWallet({
-          ...w,
-          dollar_balance:             Number(w.dollar_balance             ?? 0),
-          lifetime_dollars_purchased: Number(w.lifetime_dollars_purchased ?? 0),
-          lifetime_dollars_used:      Number(w.lifetime_dollars_used      ?? 0),
+          ...row,
+          dollar_balance:             Number(row.dollar_balance             ?? 0),
+          lifetime_dollars_purchased: Number(row.lifetime_dollars_purchased ?? 0),
+          lifetime_dollars_used:      Number(row.lifetime_dollars_used      ?? 0),
         });
 
         const { data: txns } = await supabase
           .from('token_transactions')
           .select('*')
-          .eq('wallet_id', w.id)
+          .eq('wallet_id', row.id)
           .order('created_at', { ascending: false })
           .limit(30);
 
@@ -140,7 +140,6 @@ export default function UsageTab({ userId }: UsageTabProps) {
         </div>
       ) : (
         <>
-          {/* Primary dollar stat cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
             {[
               {
@@ -174,7 +173,6 @@ export default function UsageTab({ userId }: UsageTabProps) {
             ))}
           </div>
 
-          {/* Utilisation bar (dollar-based) */}
           {wallet.lifetime_dollars_purchased > 0 && (
             <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
@@ -190,7 +188,6 @@ export default function UsageTab({ userId }: UsageTabProps) {
             </div>
           )}
 
-          {/* Transactions */}
           <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', overflow: 'hidden' }}>
             <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0 }}>recent transactions</p>
@@ -217,7 +214,6 @@ export default function UsageTab({ userId }: UsageTabProps) {
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem',
                       }}
                     >
-                      {/* Left: icon + description */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', minWidth: 0 }}>
                         <div style={{
                           width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
@@ -246,7 +242,6 @@ export default function UsageTab({ userId }: UsageTabProps) {
                                 {shortModel(txn.model_id)}
                               </span>
                             )}
-                            {/* token breakdown for debit rows */}
                             {txn.transaction_type === 'debit' && (txn.input_tokens || txn.output_tokens) ? (
                               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ddd' }}>
                                 {fmtTokens((txn.input_tokens ?? 0) + (txn.output_tokens ?? 0))} tokens
@@ -256,7 +251,6 @@ export default function UsageTab({ userId }: UsageTabProps) {
                         </div>
                       </div>
 
-                      {/* Right: dollar amount (primary) + token (secondary) */}
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         {hasDollar ? (
                           <>
@@ -273,7 +267,6 @@ export default function UsageTab({ userId }: UsageTabProps) {
                             )}
                           </>
                         ) : (
-                          // Legacy rows that only have token amounts
                           <>
                             <p style={{
                               margin: '0 0 0.1rem', fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', fontWeight: 400,
