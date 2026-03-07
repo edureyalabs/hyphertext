@@ -30,6 +30,7 @@ const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 
 type ViewMode = 'preview' | 'mobile' | 'code';
 type ChatTab  = 'chat' | 'files';
+type InferenceMode = 'economy' | 'speed';
 
 const AGENT_TIMEOUT_MS = 90000;
 
@@ -127,6 +128,15 @@ export default function StudioPage() {
   const [isDragOver, setIsDragOver]           = useState(false);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
 
+  // ── Inference mode state ─────────────────────────────────────────────────
+  // Defaults to 'economy'. Once first message is sent, locked to the
+  // persisted value from the page record (read via page.inference_mode).
+  const [inferenceMode, setInferenceMode]     = useState<InferenceMode>('economy');
+  // modeLocked = true once first message has been sent OR page already has a mode
+  const [modeLocked, setModeLocked]           = useState(false);
+  // Brief confirmation label shown after lock-in ("⚡ Speed locked" / "Economy locked")
+  const [modeLockLabel, setModeLockLabel]     = useState('');
+
   // code editor state
   const [editedCode, setEditedCode]           = useState<string | null>(null);
   const [syncing, setSyncing]                 = useState(false);
@@ -181,6 +191,12 @@ export default function StudioPage() {
       htmlContentRef.current = pageData.html_content;
       setEditedCode(pageData.html_content);
 
+      // ── Restore persisted inference mode from DB ──────────────────────────
+      const persistedMode = (pageData as any).inference_mode as InferenceMode | undefined;
+      if (persistedMode === 'economy' || persistedMode === 'speed') {
+        setInferenceMode(persistedMode);
+      }
+
       const [msgList, assetList, versionList] = await Promise.all([
         getMessages(pageId),
         listAssets(pageId),
@@ -190,7 +206,12 @@ export default function StudioPage() {
       setAssets(assetList);
       setVersions(versionList);
 
-      if (msgList.length > 0) setHasEverSentMessage(true);
+      const hadPriorMessages = msgList.length > 0;
+      if (hadPriorMessages) {
+        setHasEverSentMessage(true);
+        // Lock mode if this page already has messages (mode was already chosen)
+        setModeLocked(true);
+      }
 
       const agentCurrentlyRunning = deriveAgentRunning(msgList);
       setIsAgentRunning(agentCurrentlyRunning);
@@ -294,6 +315,16 @@ export default function StudioPage() {
   const handleSendMessage = async () => {
     if (!input.trim() || isAgentRunning) return;
     const text = input.trim();
+
+    // ── Lock mode on first send ───────────────────────────────────────────
+    const isFirstMessage = !hasEverSentMessage;
+    if (isFirstMessage && !modeLocked) {
+      setModeLocked(true);
+      const label = inferenceMode === 'speed' ? '⚡ Speed locked' : 'Economy locked';
+      setModeLockLabel(label);
+      setTimeout(() => setModeLockLabel(''), 3000);
+    }
+
     setInput('');
     setIsAgentRunning(true);
     setHasEverSentMessage(true);
@@ -317,8 +348,12 @@ export default function StudioPage() {
       );
     }
 
-    // model_id omitted — backend selects automatically
-    const { error } = await sendMessage(pageId, text);
+    // Pass inference_mode only on first message — backend ignores it after that
+    const { error } = await sendMessage(
+      pageId,
+      text,
+      isFirstMessage ? inferenceMode : undefined,
+    );
     if (error) { setIsAgentRunning(false); clearAgentTimeout(); }
   };
 
@@ -414,6 +449,9 @@ export default function StudioPage() {
         >
           <span style={{ fontSize: '0.55rem', opacity: 0.5 }}>{isExpanded ? 'v' : '>'}</span>
           thinking
+          {plan._inference_mode === 'speed' && (
+            <span style={{ marginLeft: '0.2rem', fontSize: '0.6rem' }}>⚡</span>
+          )}
         </button>
         {isExpanded && (
           <div style={{ marginTop: '0.4rem', background: '#fafaf9', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '0.75rem', maxWidth: '300px', width: '100%' }}>
@@ -545,6 +583,7 @@ export default function StudioPage() {
         @keyframes spin    { to { transform: rotate(360deg); } }
         @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes fadeUp  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
         @keyframes modalIn { from { opacity:0; transform:scale(0.97) translateY(4px); } to { opacity:1; transform:scale(1) translateY(0); } }
 
         .tab-btn { background: transparent; border: none; padding: 0.35rem 0.75rem; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; font-weight: 400; color: #999; cursor: pointer; border-radius: 3px; transition: background 0.12s, color 0.12s; }
@@ -594,6 +633,23 @@ export default function StudioPage() {
         .staged-file-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
 
         .versions-panel { position: absolute; top: 42px; right: 0; width: 260px; background: #fff; border: 1px solid #e8e6e1; border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); z-index: 100; overflow: hidden; animation: fadeUp 0.15s ease both; }
+
+        /* ── Inference mode toggle ───────────────────────────────────────── */
+        .mode-toggle-wrap { display: flex; align-items: center; gap: 0.5rem; }
+        .mode-toggle { display: flex; background: #f0ede8; border: 1px solid #e8e6e1; border-radius: 100px; padding: 2px; gap: 2px; }
+        .mode-btn {
+          border: none; background: transparent; border-radius: 100px;
+          padding: 0.22rem 0.65rem; font-size: 0.68rem;
+          font-family: 'DM Mono', monospace; cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+          color: #aaa; display: flex; align-items: center; gap: 0.25rem;
+          white-space: nowrap;
+        }
+        .mode-btn:hover:not(:disabled) { color: #555; }
+        .mode-btn.active.economy { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .mode-btn.active.speed   { background: #111; color: #f8f7f4; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+        .mode-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .mode-lock-label { font-family: 'DM Mono', monospace; font-size: 0.62rem; color: #aaa; animation: fadeIn 0.2s ease both; white-space: nowrap; }
       `}</style>
 
       {isDragOver && (
@@ -618,6 +674,7 @@ export default function StudioPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '100px', padding: '0.2rem 0.6rem' }}>
               <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1s infinite' }} />
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#888' }}>generating</span>
+              {inferenceMode === 'speed' && <span style={{ fontSize: '0.65rem' }}>⚡</span>}
             </div>
           )}
           {isSuspended && (
@@ -731,6 +788,21 @@ export default function StudioPage() {
                 </span>
               )}
             </button>
+
+            {/* ── Mode badge (shown when locked) ──────────────────────────── */}
+            {modeLocked && (
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span style={{
+                  fontFamily: "'DM Mono', monospace", fontSize: '0.62rem',
+                  padding: '0.15rem 0.5rem', borderRadius: '100px',
+                  background: inferenceMode === 'speed' ? '#111' : '#f0ede8',
+                  color: inferenceMode === 'speed' ? '#f8f7f4' : '#888',
+                  display: 'flex', alignItems: 'center', gap: '0.2rem',
+                }}>
+                  {inferenceMode === 'speed' ? '⚡ speed' : 'economy'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* ── Version history panel ──────────────────────────────────────── */}
@@ -829,6 +901,41 @@ export default function StudioPage() {
                     ))}
                   </div>
                 )}
+
+                {/* ── Inference mode toggle (shown only before first send) ── */}
+                {!modeLocked && (
+                  <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div className="mode-toggle-wrap">
+                      <div className="mode-toggle">
+                        <button
+                          className={`mode-btn${inferenceMode === 'economy' ? ' active economy' : ''}`}
+                          onClick={() => setInferenceMode('economy')}
+                          title="Economy: Together AI — lower cost"
+                        >
+                          Economy
+                        </button>
+                        <button
+                          className={`mode-btn${inferenceMode === 'speed' ? ' active speed' : ''}`}
+                          onClick={() => setInferenceMode('speed')}
+                          title="Speed: Cerebras — ~1000 tokens/sec"
+                        >
+                          ⚡ Speed
+                        </button>
+                      </div>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ccc' }}>
+                        {inferenceMode === 'speed' ? 'cerebras · ~1000 t/s' : 'together ai · default'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Lock-in confirmation label ────────────────────────── */}
+                {modeLockLabel && (
+                  <div style={{ marginBottom: '0.4rem' }}>
+                    <span className="mode-lock-label">{modeLockLabel}</span>
+                  </div>
+                )}
+
                 <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <textarea
                     ref={textareaRef}

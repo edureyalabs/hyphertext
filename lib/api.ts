@@ -19,6 +19,7 @@ export interface Page {
   page_source: 'agent' | 'import';
   html_summary: string;
   component_map: any[];
+  inference_mode: 'economy' | 'speed' | null;
   created_at: string;
   updated_at: string;
 }
@@ -153,11 +154,24 @@ export async function getMessages(pageId: string): Promise<ChatMessage[]> {
   return data.messages ?? [];
 }
 
-export async function sendMessage(pageId: string, content: string, model_id?: string): Promise<{ error: string | null }> {
+export async function sendMessage(
+  pageId: string,
+  content: string,
+  inferenceMode?: 'economy' | 'speed',
+): Promise<{ error: string | null }> {
+  const body: Record<string, string> = { content };
+
+  // model_id is kept for any legacy callers but is ignored by the backend.
+  // inference_mode is only meaningful on the first message — the backend
+  // ignores it once pages.inference_mode is already persisted.
+  if (inferenceMode) {
+    body.inference_mode = inferenceMode;
+  }
+
   const res = await fetch(`/api/pages/${pageId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, model_id }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const data = await res.json();
@@ -276,14 +290,12 @@ export async function verifyAndUpgradeSubscription(tier: string, razorpay_order_
   return { success: true };
 }
 
-// FIX: removed redundant dynamic re-import, using top-level supabase
 export async function signIn(email: string, password: string): Promise<{ error: string | null }> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
   return { error: null };
 }
 
-// FIX: added requiresConfirmation, removed redundant dynamic re-import
 export async function signUp(email: string, password: string): Promise<{ requiresConfirmation: boolean; error: string | null }> {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return { requiresConfirmation: false, error: error.message };
@@ -291,7 +303,6 @@ export async function signUp(email: string, password: string): Promise<{ require
   return { requiresConfirmation, error: null };
 }
 
-// FIX: guarded window.location.origin for SSR safety, removed redundant dynamic re-import
 export async function forgotPassword(email: string): Promise<{ error: string | null }> {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -301,13 +312,11 @@ export async function forgotPassword(email: string): Promise<{ error: string | n
   return { error: null };
 }
 
-// FIX: removed redundant dynamic re-import, using top-level supabase
 export async function updatePassword(newPassword: string): Promise<{ error: string | null }> {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) return { error: error.message };
   return { error: null };
 }
-
 
 export function signInWithGoogle() {
   window.location.href = '/api/auth/google';
