@@ -109,7 +109,7 @@ export default function TermsPage() {
           --accent-purple: #6B3AC8;
         }
         .nav-link {
-          font-size: 1rem; font-weight: 450; color: #555;
+          font-size: 1rem; font-weight: 450; color: #444;
           text-decoration: none; transition: color 0.15s;
         }
         .nav-link:hover { color: #111; }
@@ -152,7 +152,7 @@ export default function TermsPage() {
       {/* ── HEADER ── */}
       <section style={{ borderBottom: "1px solid var(--border)" }}>
         <div style={{ background: "#111", padding: "0.55rem 2.5rem" }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.65rem", color: "rgba(255,255,255,0.32)", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 400 }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.65rem", color: "rgba(255,255,255,0.38)", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 400 }}>
             hyphertext · legal
           </span>
         </div>
@@ -167,14 +167,14 @@ export default function TermsPage() {
           </div>
           <h1 style={{ fontSize: "clamp(2.5rem, 5vw, 4.2rem)", fontWeight: 300, lineHeight: 1.07, letterSpacing: "-0.04em", color: "#111", marginBottom: "1.75rem" }}>
             Clear rules for a<br />
-            <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 400, color: "#aaa" }}>fair platform.</em>
+            <em style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 400, color: "#999" }}>fair platform.</em>
           </h1>
-          <p style={{ fontSize: "1rem", color: "#666", fontWeight: 300, lineHeight: 1.85, maxWidth: "580px", marginBottom: "1.75rem" }}>
+          <p style={{ fontSize: "1.08rem", color: "#444", fontWeight: 300, lineHeight: 1.85, maxWidth: "580px", marginBottom: "1.75rem" }}>
             These terms govern your use of Hyphertext. We've written them to be as clear and readable as possible. If you have questions, email us at support@hyphertext.com.
           </p>
           <div style={{
             fontFamily: "'DM Mono', monospace", fontSize: "0.68rem", fontWeight: 400,
-            color: "#999", padding: "0.65rem 1rem",
+            color: "#888", padding: "0.65rem 1rem",
             background: "#fff", border: "1px solid var(--border)",
             borderRadius: "4px", display: "inline-block"
           }}>
@@ -189,22 +189,22 @@ export default function TermsPage() {
           <div key={section.id} className="policy-section">
             <div style={{ paddingTop: "0.2rem" }}>
               <div style={{
-                fontFamily: "'DM Mono', monospace", fontSize: "0.7rem", fontWeight: 500,
+                fontFamily: "'DM Mono', monospace", fontSize: "0.72rem", fontWeight: 500,
                 color: ACCENT_COLORS[idx], letterSpacing: "0.08em",
                 marginBottom: "0.6rem", display: "flex", alignItems: "center", gap: "0.4rem"
               }}>
                 <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: ACCENT_COLORS[idx], display: "inline-block", flexShrink: 0 }} />
                 {section.id}
               </div>
-              <h2 style={{ fontSize: "0.95rem", fontWeight: 500, color: "#333", lineHeight: 1.5, letterSpacing: "-0.01em" }}>
+              <h2 style={{ fontSize: "1rem", fontWeight: 500, color: "#222", lineHeight: 1.5, letterSpacing: "-0.01em" }}>
                 {section.title}
               </h2>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
               {section.content.map((item) => (
                 <div key={item.heading}>
-                  <h3 style={{ fontSize: "0.9rem", fontWeight: 500, color: "#111", marginBottom: "0.4rem" }}>{item.heading}</h3>
-                  <p style={{ fontSize: "0.88rem", color: "#666", fontWeight: 300, lineHeight: 1.85 }}>{item.body}</p>
+                  <h3 style={{ fontSize: "0.96rem", fontWeight: 500, color: "#111", marginBottom: "0.45rem" }}>{item.heading}</h3>
+                  <p style={{ fontSize: "0.92rem", color: "#555", fontWeight: 300, lineHeight: 1.9 }}>{item.body}</p>
                 </div>
               ))}
             </div>
@@ -215,50 +215,55 @@ export default function TermsPage() {
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: "3.5rem", display: "grid", gridTemplateColumns: "220px 1fr", gap: "3.5rem" }}>
           <div>
             <div style={{
-              fontFamily: "'DM Mono', monospace", fontSize: "0.7rem", fontWeight: 500,
+              fontFamily: "'DM Mono', monospace", fontSize: "0.72rem", fontWeight: 500,
               color: "var(--accent-green)", letterSpacing: "0.08em",
               marginBottom: "0.6rem", display: "flex", alignItems: "center", gap: "0.4rem"
             }}>
               <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--accent-green)", display: "inline-block" }} />
               contact
             </div>
-            <h2 style={{ fontSize: "0.95rem", fontWeight: 500, color: "#333" }}>Questions?</h2>
+            <h2 style={{ fontSize: "1rem", fontWeight: 500, color: "#222" }}>Questions?</h2>
           </div>
           <div>
-            <p style={{ fontSize: "0.88rem", color: "#666", fontWeight: 300, lineHeight: 1.85, marginBottom: "1rem" }}>
+            <p style={{ fontSize: "0.92rem", color: "#555", fontWeight: 300, lineHeight: 1.85, marginBottom: "1rem" }}>
               For questions about these Terms, please reach out:
             </p>
-            <a href="mailto:support@hyphertext.com" style={{ fontSize: "1rem", color: "#111", textDecoration: "underline", textUnderlineOffset: "3px", textDecorationColor: "#ccc" }}>
+            <a href="mailto:support@hyphertext.com" style={{ fontSize: "1.05rem", color: "#111", textDecoration: "underline", textUnderlineOffset: "3px", textDecorationColor: "#bbb" }}>
               support@hyphertext.com
             </a>
-            <p style={{ fontSize: "0.84rem", color: "#aaa", fontWeight: 300, marginTop: "0.4rem" }}>Bengaluru, Karnataka, India · 560078</p>
+            <p style={{ fontSize: "0.88rem", color: "#999", fontWeight: 300, marginTop: "0.4rem" }}>Bengaluru, Karnataka, India · 560078</p>
           </div>
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
-      <footer style={{ background: "#0a0a0a", borderTop: "1px solid #1f1f1f", padding: "3rem 2.5rem" }}>
-        <div style={{ maxWidth: "960px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1.5rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.7rem" }}>
-            <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: "50%", opacity: 0.65 }} />
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.9rem", color: "rgba(255,255,255,0.45)", letterSpacing: "0.04em", fontWeight: 400 }}>
-              hyphertext
+      {/* ── FOOTER (matches main page) ── */}
+      <footer style={{ background: "#FAF9F5", borderTop: "1px solid var(--border)", padding: "2rem 2.5rem" }}>
+        <div style={{ maxWidth: "960px", margin: "0 auto" }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            flexWrap: "wrap", gap: "1.5rem"
+          }}>
+            <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.65rem", textDecoration: "none" }}>
+              <Image src="/logo.png" alt="Hyphertext" width={28} height={28} style={{ borderRadius: "50%" }} />
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.95rem", color: "#333", letterSpacing: "0.03em", fontWeight: 400 }}>
+                hyphertext
+              </span>
+            </Link>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.75rem", color: "#bbb", fontWeight: 400, letterSpacing: "0.02em" }}>
+              © 2025 Hyphertext · Bengaluru, India
             </span>
+            <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+              {[["About", "/about"], ["Pricing", "/pricing"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
+                <Link key={href} href={href}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "0.88rem", color: "#888", textDecoration: "none", letterSpacing: "0.01em", fontWeight: 400, transition: "color 0.15s" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "#222")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "#888")}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: "2.25rem" }}>
-            {[["About", "/about"], ["Privacy", "/privacy"], ["Explore", "/explore"]].map(([label, href]) => (
-              <Link key={href} href={href}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontSize: "0.88rem", color: "rgba(255,255,255,0.38)", textDecoration: "none", fontWeight: 400, transition: "color 0.15s" }}
-                onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.72)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.38)")}
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.8rem", color: "rgba(255,255,255,0.22)", fontWeight: 400 }}>
-            © 2025 Hyphertext · Bengaluru, India
-          </span>
         </div>
       </footer>
     </main>
