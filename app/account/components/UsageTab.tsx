@@ -55,7 +55,7 @@ export default function UsageTab({ userId }: UsageTabProps) {
         .single();
 
       if (w) {
-        const row = w as Wallet;
+        const row = w as unknown as Wallet;
         setWallet({
           ...row,
           dollar_balance:             Number(row.dollar_balance             ?? 0),
