@@ -148,7 +148,6 @@ export default function Home() {
           </span>
         </Link>
         <div style={{ display: "flex", alignItems: "center", gap: "2.25rem" }}>
-          <Link href="/explore" className="nav-link">Explore</Link>
           <Link href="/auth" style={{
             background: "#111",
             color: "#F4F2ED",
@@ -169,10 +168,9 @@ export default function Home() {
         <div style={{ maxWidth: "1600px", margin: "0 auto", padding: "0 1.5rem", width: "100%" }}>
           <div className="hero-grid" style={{ display: "grid", gridTemplateColumns: "38fr 62fr", minHeight: "88vh", alignItems: "stretch" }}>
 
-            {/* Left — 45% */}
+            {/* Left */}
             <div style={{
               padding: "3.5rem 2rem 3.5rem 0",
-              
               display: "flex",
               flexDirection: "column",
               justifyContent: "space-between"
@@ -180,7 +178,7 @@ export default function Home() {
               <div>
                 <div style={{
                   fontFamily: "'DM Mono', monospace",
-                  fontSize: "0.78rem",
+                  fontSize: "0.9rem",
                   color: "var(--accent)",
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
@@ -242,14 +240,13 @@ export default function Home() {
                     Start building free
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </Link>
-                  <Link href="/explore" className="cta-ghost">Browse live sites</Link>
                 </div>
               </div>
 
-              {/* Stats — horizontal row */}
+              {/* Stats */}
               <div style={{
                 borderTop: "1px solid var(--border)",
-                paddingTop: "1.25rem",
+                paddingTop: "1.5rem",
                 display: "flex",
                 flexDirection: "row",
                 gap: "0"
@@ -267,8 +264,8 @@ export default function Home() {
                   }}>
                     <div style={{
                       fontFamily: "'DM Mono', monospace",
-                      fontSize: "1.05rem",
-                      fontWeight: 450,
+                      fontSize: "1.35rem",
+                      fontWeight: 500,
                       color: color as string,
                       letterSpacing: "-0.02em"
                     }}>
@@ -276,9 +273,9 @@ export default function Home() {
                     </div>
                     <div style={{
                       fontFamily: "'DM Mono', monospace",
-                      fontSize: "0.65rem",
-                      color: "#999",
-                      marginTop: "0.25rem",
+                      fontSize: "0.72rem",
+                      color: "#777",
+                      marginTop: "0.3rem",
                       letterSpacing: "0.02em",
                       fontWeight: 400,
                       lineHeight: 1.4
@@ -290,14 +287,13 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right — 56% — 16:9 laptop-style window with breathing room */}
+            {/* Right */}
             <div className="hero-right" style={{
               padding: "2rem 1.5rem 2rem 2rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "center"
             }}>
-              {/* 16:9 landscape window, floats centered with space around */}
               <div style={{
                 width: "min(900px, 98%)",
                 aspectRatio: "16 / 11",
@@ -390,12 +386,12 @@ export default function Home() {
             <div>
               <div style={{
                 fontFamily: "'DM Mono', monospace",
-                fontSize: "0.8rem",
-                color: "rgba(200,90,26,0.8)",
-                letterSpacing: "0.1em",
+                fontSize: "1rem",
+                color: "#E8733A",
+                letterSpacing: "0.06em",
                 textTransform: "uppercase",
                 marginBottom: "2rem",
-                fontWeight: 500
+                fontWeight: 600
               }}>
                 vibe coding · for everyone
               </div>
@@ -572,16 +568,20 @@ export default function Home() {
       </section>
 
       {/* ── CTA ─────────────────────────────────────────────────────── */}
-      <section style={{ background: "#111", color: "#F4F2ED" }}>
-        <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "9rem 2.5rem", textAlign: "center" }}>
+      <section style={{
+        background: "#F4F2ED",
+        borderTop: "1px solid var(--border)",
+        borderBottom: "1px solid var(--border)"
+      }}>
+        <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "10rem 2.5rem", textAlign: "center" }}>
           <div style={{
             fontFamily: "'DM Mono', monospace",
-            fontSize: "0.82rem",
-            color: "rgba(255,255,255,0.28)",
-            letterSpacing: "0.15em",
+            fontSize: "1rem",
+            color: "#C85A1A",
+            letterSpacing: "0.12em",
             textTransform: "uppercase",
             marginBottom: "3rem",
-            fontWeight: 500
+            fontWeight: 600
           }}>
             the web. reimagined.
           </div>
@@ -590,38 +590,31 @@ export default function Home() {
             fontWeight: 300,
             lineHeight: 1.05,
             letterSpacing: "-0.04em",
-            marginBottom: "2rem",
             maxWidth: "800px",
-            margin: "0 auto 2rem"
+            margin: "0 auto 2rem",
+            color: "#0d0d0d"
           }}>
             Your idea deserves<br />
             to be <em style={{
               fontFamily: "'Playfair Display', serif",
               fontStyle: "italic",
-              color: "rgba(255,255,255,0.3)"
+              color: "#bbb"
             }}>alive</em>.
           </h2>
           <p style={{
-            fontSize: "1.05rem",
-            color: "rgba(255,255,255,0.4)",
+            fontSize: "1.1rem",
+            color: "#777",
             fontWeight: 300,
             lineHeight: 1.8,
             marginBottom: "3.5rem"
           }}>
             No code required. No server. No friction. Just build.
           </p>
-          <Link href="/auth" style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.55rem",
-            background: "#F4F2ED",
-            color: "#111",
+          <Link href="/auth" className="cta-primary" style={{
             padding: "1.1rem 2.8rem",
-            borderRadius: "4px",
             fontSize: "0.98rem",
             fontWeight: 600,
-            textDecoration: "none",
-            letterSpacing: "0.02em"
+            borderRadius: "4px"
           }}>
             Start building — it's free
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -630,7 +623,7 @@ export default function Home() {
             marginTop: "1.1rem",
             fontFamily: "'DM Mono', monospace",
             fontSize: "0.72rem",
-            color: "rgba(255,255,255,0.2)",
+            color: "#bbb",
             fontWeight: 400
           }}>
             1 free hosted site forever · no card required
@@ -639,68 +632,66 @@ export default function Home() {
       </section>
 
       {/* ── FOOTER ──────────────────────────────────────────────────── */}
-      <footer style={{ background: "#0a0a0a", borderTop: "1px solid #1f1f1f", padding: "3rem 2.5rem" }}>
-        <div style={{
-          maxWidth: "1400px",
-          margin: "0 auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "1.75rem"
-        }}>
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.7rem" }}>
-            <Image
-              src="/logo.png"
-              alt="Hyphertext"
-              width={26}
-              height={26}
-              style={{ borderRadius: "50%", opacity: 0.65 }}
-            />
+      <footer style={{ background: "#FAF9F5", borderTop: "1px solid var(--border)", padding: "2rem 2.5rem" }}>
+        <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "1.5rem"
+          }}>
+            <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.65rem", textDecoration: "none" }}>
+              <Image
+                src="/logo.png"
+                alt="Hyphertext"
+                width={28}
+                height={28}
+                style={{ borderRadius: "50%" }}
+              />
+              <span style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: "0.95rem",
+                color: "#333",
+                letterSpacing: "0.03em",
+                fontWeight: 400
+              }}>
+                hyphertext
+              </span>
+            </Link>
+
             <span style={{
               fontFamily: "'DM Mono', monospace",
-              fontSize: "0.9rem",
-              color: "rgba(255,255,255,0.45)",
-              letterSpacing: "0.04em",
-              fontWeight: 400
+              fontSize: "0.75rem",
+              color: "#bbb",
+              fontWeight: 400,
+              letterSpacing: "0.02em"
             }}>
-              hyphertext
+              © 2025 Hyphertext · Bengaluru, India
             </span>
-          </div>
 
-          {/* Nav links */}
-          <div style={{ display: "flex", gap: "2.25rem", flexWrap: "wrap", justifyContent: "center" }}>
-            {[["About", "/about"], ["Pricing", "/pricing"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
-              <Link
-                key={href}
-                href={href}
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "0.88rem",
-                  color: "rgba(255,255,255,0.38)",
-                  textDecoration: "none",
-                  letterSpacing: "0.01em",
-                  fontWeight: 400,
-                  transition: "color 0.15s"
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.72)")}
-                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.38)")}
-              >
-                {label}
-              </Link>
-            ))}
+            <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+              {[["About", "/about"], ["Pricing", "/pricing"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "0.88rem",
+                    color: "#888",
+                    textDecoration: "none",
+                    letterSpacing: "0.01em",
+                    fontWeight: 400,
+                    transition: "color 0.15s"
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "#222")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "#888")}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
           </div>
-
-          {/* Copyright */}
-          <span style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize: "0.8rem",
-            color: "rgba(255,255,255,0.22)",
-            fontWeight: 400,
-            letterSpacing: "0.02em"
-          }}>
-            © 2025 Hyphertext · Bengaluru, India
-          </span>
         </div>
       </footer>
     </main>
