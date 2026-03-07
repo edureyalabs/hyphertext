@@ -9,14 +9,27 @@ interface PurchaseTabProps {
 
 type PurchaseState = 'idle' | 'creating' | 'checkout' | 'verifying' | 'success' | 'error';
 
+// Model pricing reference (matches model_pricing table) — used only for the
+// "estimated tokens" preview. Actual billing always goes through the DB.
+const MODEL_PRICING: { label: string; inputPer1M: number; outputPer1M: number }[] = [
+  { label: 'Llama 3.3 70B (Groq)',        inputPer1M: 0.59, outputPer1M: 0.79  },
+  { label: 'GLM-5 (Together AI)',          inputPer1M: 1.00, outputPer1M: 3.20  },
+  { label: 'GLM-4.7-Flash (Together AI)', inputPer1M: 0.00, outputPer1M: 0.00  },
+  { label: 'Claude Haiku 4.5',            inputPer1M: 1.00, outputPer1M: 5.00  },
+];
+
+// For the "how far does $X go" estimate we use a blended average cost per page build.
+// Rough estimate: a page build uses ~4000 input + ~3000 output tokens on GLM-5.
+const APPROX_COST_PER_BUILD_USD = (4000 / 1_000_000) * 1.00 + (3000 / 1_000_000) * 3.20; // ~$0.0136
+
 export default function PurchaseTab({ userId }: PurchaseTabProps) {
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
-  const [tokensPerDollar, setTokensPerDollar] = useState(100000);
-  const [amountUSD, setAmountUSD] = useState('5');
-  const [state, setState] = useState<PurchaseState>('idle');
-  const [error, setError] = useState('');
-  const [lastPurchased, setLastPurchased] = useState(0);
-  const [loadingData, setLoadingData] = useState(true);
+  const [dollarBalance, setDollarBalance]   = useState<number | null>(null);
+  const [tokenBalance, setTokenBalance]     = useState<number | null>(null);
+  const [amountUSD, setAmountUSD]           = useState('5');
+  const [state, setState]                   = useState<PurchaseState>('idle');
+  const [error, setError]                   = useState('');
+  const [lastCredited, setLastCredited]     = useState(0);
+  const [loadingData, setLoadingData]       = useState(true);
 
   useEffect(() => {
     loadData();
@@ -25,19 +38,17 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
   const loadData = async () => {
     setLoadingData(true);
     try {
-      // Load wallet
       if (userId) {
         const { data: wallet } = await supabase
           .from('user_wallets')
-          .select('token_balance')
+          .select('dollar_balance, token_balance')
           .eq('user_id', userId)
           .single();
-        if (wallet) setWalletBalance(wallet.token_balance);
+        if (wallet) {
+          setDollarBalance(Number(wallet.dollar_balance ?? 0));
+          setTokenBalance(Number(wallet.token_balance ?? 0));
+        }
       }
-      // Load token price
-      const res = await fetch('/api/wallet/price');
-      const data = await res.json();
-      if (data.data) setTokensPerDollar(data.data);
     } catch {
       // silent
     } finally {
@@ -45,16 +56,22 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
     }
   };
 
-  const parsedAmount = parseFloat(amountUSD) || 0;
-  const tokenPreview = Math.floor(parsedAmount * tokensPerDollar);
+  const parsedAmount  = parseFloat(amountUSD) || 0;
   const isValidAmount = parsedAmount >= 1;
 
-  const formatTokens = (n: number) =>
-    n >= 1_000_000
-      ? (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
-      : n >= 1_000
-      ? (n / 1_000).toFixed(0) + 'K'
-      : n.toLocaleString();
+  // Estimated page builds from this purchase
+  const estimatedBuilds = APPROX_COST_PER_BUILD_USD > 0
+    ? Math.floor(parsedAmount / APPROX_COST_PER_BUILD_USD)
+    : 0;
+
+  const fmtDollars = (n: number) =>
+    n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+
+  const fmtTokens = (n: number) => {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1_000)     return (n / 1_000).toFixed(0) + 'K';
+    return n.toLocaleString();
+  };
 
   const handlePurchase = async () => {
     if (!isValidAmount || !userId) return;
@@ -62,7 +79,7 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
     setError('');
 
     try {
-      // Step 1: create order
+      // Step 1: create Razorpay order
       const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,7 +96,7 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
           const script = document.createElement('script');
           script.src = 'https://checkout.razorpay.com/v1/checkout.js';
           script.async = true;
-          script.onload = () => resolve();
+          script.onload  = () => resolve();
           script.onerror = () => reject(new Error('Failed to load Razorpay SDK'));
           document.body.appendChild(script);
         });
@@ -87,15 +104,15 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
 
       setState('checkout');
 
-      // Step 3: open Razorpay
+      // Step 3: open Razorpay checkout
       await new Promise<void>((resolve, reject) => {
         const options = {
-          key: orderData.razorpayKeyId,
-          amount: orderData.order.amount,
-          currency: orderData.order.currency,
-          name: 'Hyphertext',
-          description: `${formatTokens(tokenPreview)} tokens`,
-          order_id: orderData.order.id,
+          key:         orderData.razorpayKeyId,
+          amount:      orderData.order.amount,
+          currency:    orderData.order.currency,
+          name:        'Hyphertext',
+          description: `$${parsedAmount.toFixed(2)} USD credit`,
+          order_id:    orderData.order.id,
           handler: async (response: any) => {
             setState('verifying');
             try {
@@ -103,7 +120,7 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_order_id:  response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
                   userId,
@@ -111,7 +128,7 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
               });
               const verifyData = await verifyRes.json();
               if (verifyData.success) {
-                setLastPurchased(tokenPreview);
+                setLastCredited(verifyData.amountUSD ?? parsedAmount);
                 setState('success');
                 await loadData();
                 setTimeout(() => setState('idle'), 5000);
@@ -151,39 +168,44 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>tokens</p>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 300, letterSpacing: '-0.025em', margin: 0, color: '#111' }}>Purchase tokens</h1>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>credits</p>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 300, letterSpacing: '-0.025em', margin: 0, color: '#111' }}>Purchase credits</h1>
       </div>
 
-      {/* Wallet balance card */}
+      {/* Balance card */}
       <div style={{
         background: '#111', borderRadius: '10px', padding: '1.5rem',
-        marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: '1rem',
       }}>
-        <div>
-          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 0.4rem' }}>current balance</p>
-          {loadingData ? (
-            <div style={{ width: '80px', height: '28px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px' }} />
-          ) : (
-            <p style={{ margin: 0, fontSize: '1.8rem', fontWeight: 300, color: '#f8f7f4', letterSpacing: '-0.02em', fontFamily: "'DM Mono', monospace" }}>
-              {walletBalance !== null ? formatTokens(walletBalance) : '—'}
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 0.4rem' }}>current balance</p>
+        {loadingData ? (
+          <div style={{ width: '120px', height: '36px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px' }} />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.75rem' }}>
+            <p style={{ margin: 0, fontSize: '2rem', fontWeight: 300, color: '#f8f7f4', letterSpacing: '-0.03em', fontFamily: "'DM Mono', monospace" }}>
+              ${dollarBalance !== null ? fmtDollars(dollarBalance) : '—'}
             </p>
-          )}
-          <p style={{ margin: '0.3rem 0 0', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', fontWeight: 300 }}>tokens available</p>
-        </div>
-        <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)' }}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M9 2v14M2 9h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
-        </div>
+            {tokenBalance !== null && tokenBalance > 0 && (
+              <p style={{ margin: '0 0 0.25rem', fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>
+                / {fmtTokens(tokenBalance)} tokens
+              </p>
+            )}
+          </div>
+        )}
+        <p style={{ margin: '0.3rem 0 0', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', fontWeight: 300 }}>
+          dollar credits · billed per AI usage
+        </p>
       </div>
 
-      {/* Rate info */}
-      <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2a9d5c', flexShrink: 0 }} />
-        <p style={{ margin: 0, fontSize: '0.8rem', color: '#555', fontWeight: 300 }}>
-          Current rate: <strong style={{ fontWeight: 500, color: '#111' }}>{tokensPerDollar.toLocaleString()} tokens</strong> per $1 USD
-        </p>
+      {/* How billing works info strip */}
+      <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1rem 1.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2a9d5c', flexShrink: 0, marginTop: '0.35rem' }} />
+        <div>
+          <p style={{ margin: '0 0 0.2rem', fontSize: '0.8rem', color: '#333', fontWeight: 500 }}>Dollar-credit billing</p>
+          <p style={{ margin: 0, fontSize: '0.75rem', color: '#888', fontWeight: 300, lineHeight: 1.6 }}>
+            Credits are deducted based on actual AI model usage. Different models have different rates — simple edits cost less than full page builds.
+          </p>
+        </div>
       </div>
 
       {/* Purchase form */}
@@ -207,24 +229,32 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
               width: '100%', border: '1px solid #e0ddd8', borderRadius: '6px',
               padding: '0.75rem 0.85rem 0.75rem 1.8rem', fontSize: '1.2rem',
               fontFamily: "'DM Mono', monospace", fontWeight: 300, color: '#111',
-              background: '#fff', outline: 'none',
-              transition: 'border-color 0.15s',
+              background: '#fff', outline: 'none', transition: 'border-color 0.15s',
             }}
             placeholder="5"
           />
         </div>
 
-        {/* Token preview */}
+        {/* Credit preview */}
         <div style={{
           background: '#f8f7f4', border: '1px solid #ece9e4', borderRadius: '6px',
           padding: '1rem 1.25rem', marginBottom: '1.25rem',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <span style={{ fontSize: '0.8rem', color: '#888', fontWeight: 300 }}>You receive</span>
-          <span style={{ fontSize: '1.3rem', fontWeight: 300, letterSpacing: '-0.02em', color: '#111', fontFamily: "'DM Mono', monospace" }}>
-            {isValidAmount ? formatTokens(tokenPreview) : '—'}
-            <span style={{ fontSize: '0.75rem', color: '#bbb', marginLeft: '0.4rem' }}>tokens</span>
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isValidAmount ? '0.6rem' : 0 }}>
+            <span style={{ fontSize: '0.8rem', color: '#888', fontWeight: 300 }}>You receive</span>
+            <span style={{ fontSize: '1.3rem', fontWeight: 300, letterSpacing: '-0.02em', color: '#111', fontFamily: "'DM Mono', monospace" }}>
+              {isValidAmount ? `$${parsedAmount.toFixed(2)}` : '—'}
+              <span style={{ fontSize: '0.75rem', color: '#bbb', marginLeft: '0.4rem' }}>USD credit</span>
+            </span>
+          </div>
+          {isValidAmount && (
+            <div style={{ borderTop: '1px solid #ece9e4', paddingTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.73rem', color: '#aaa', fontWeight: 300 }}>≈ page builds</span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.73rem', color: '#888' }}>
+                ~{estimatedBuilds.toLocaleString()} full builds
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Quick amounts */}
@@ -235,8 +265,10 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
               onClick={() => setAmountUSD(String(amt))}
               disabled={isProcessing || state === 'success'}
               style={{
-                flex: 1, padding: '0.4rem', border: `1px solid ${amountUSD === String(amt) ? '#111' : '#e0ddd8'}`,
-                borderRadius: '4px', background: amountUSD === String(amt) ? '#111' : 'transparent',
+                flex: 1, padding: '0.4rem',
+                border: `1px solid ${amountUSD === String(amt) ? '#111' : '#e0ddd8'}`,
+                borderRadius: '4px',
+                background: amountUSD === String(amt) ? '#111' : 'transparent',
                 color: amountUSD === String(amt) ? '#f8f7f4' : '#888',
                 fontSize: '0.78rem', fontFamily: "'DM Mono', monospace",
                 cursor: 'pointer', transition: 'all 0.12s',
@@ -260,7 +292,9 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
             <span style={{ color: '#2a9d5c', flexShrink: 0, marginTop: '1px' }}>✓</span>
             <div>
               <p style={{ margin: '0 0 0.2rem', fontSize: '0.82rem', color: '#1a7a47', fontWeight: 500 }}>Payment successful</p>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: '#2a9d5c', fontWeight: 300 }}>{formatTokens(lastPurchased)} tokens added to your account.</p>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: '#2a9d5c', fontWeight: 300 }}>
+                ${Number(lastCredited).toFixed(2)} USD added to your credit balance.
+              </p>
             </div>
           </div>
         )}
@@ -275,17 +309,17 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
             fontFamily: "'DM Sans', sans-serif", fontWeight: 400, letterSpacing: '0.02em',
             cursor: (isValidAmount && !isProcessing && state !== 'success') ? 'pointer' : 'not-allowed',
             opacity: (isValidAmount && !isProcessing && state !== 'success') ? 1 : 0.4,
-            transition: 'opacity 0.15s, background 0.15s',
+            transition: 'opacity 0.15s',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
           }}
         >
           {isProcessing && (
             <div style={{ width: '14px', height: '14px', border: '1.5px solid rgba(255,255,255,0.3)', borderTopColor: '#f8f7f4', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
           )}
-          {state === 'creating' && 'Creating order…'}
+          {state === 'creating'  && 'Creating order…'}
           {state === 'verifying' && 'Verifying payment…'}
-          {state === 'checkout' && 'Complete in Razorpay…'}
-          {state === 'success' && '✓ Purchase complete'}
+          {state === 'checkout'  && 'Complete in Razorpay…'}
+          {state === 'success'   && '✓ Purchase complete'}
           {(state === 'idle' || state === 'error') && `Pay $${parsedAmount.toFixed(2)} USD →`}
         </button>
 
@@ -294,14 +328,35 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
         </p>
       </div>
 
-      {/* How tokens work */}
+      {/* Model pricing reference */}
+      <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.5rem', marginBottom: '1rem' }}>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1rem' }}>model pricing</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {MODEL_PRICING.map(m => (
+            <div key={m.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid #f5f3ef' }}>
+              <span style={{ fontSize: '0.78rem', color: '#555', fontWeight: 300 }}>{m.label}</span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: m.inputPer1M === 0 ? '#2a9d5c' : '#888' }}>
+                {m.inputPer1M === 0
+                  ? 'free'
+                  : `$${m.inputPer1M.toFixed(2)} / $${m.outputPer1M.toFixed(2)} per 1M`}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p style={{ margin: '0.75rem 0 0', fontSize: '0.7rem', color: '#bbb', fontWeight: 300, lineHeight: 1.6 }}>
+          Input / output price per 1M tokens. Most edits use a mix of models automatically chosen by the agent.
+        </p>
+      </div>
+
+      {/* How credits work */}
       <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.5rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1rem' }}>how tokens work</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1rem' }}>how credits work</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
           {[
-            ['Purchase', 'Buy tokens at the current rate. Token price can change over time.'],
-            ['AI usage', 'Tokens are consumed each time the AI agent edits or generates a page.'],
-            ['No expiry', 'Your tokens never expire. Unused balance carries forward indefinitely.'],
+            ['Purchase',    'Add dollar credits to your account. Credits are charged at the actual cost of each AI model call.'],
+            ['AI usage',    'Each page build or edit deducts a few cents based on the models and token counts used.'],
+            ['No expiry',   'Your credit balance never expires. Unused balance carries forward indefinitely.'],
+            ['Free models', 'Some lightweight models (e.g. GLM-4.7-Flash) are free and produce no charge.'],
           ].map(([title, desc]) => (
             <div key={title} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
               <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#ddd', flexShrink: 0, marginTop: '0.45rem' }} />

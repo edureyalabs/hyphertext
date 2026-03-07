@@ -667,7 +667,7 @@ export default function Home() {
               fontWeight: 400,
               letterSpacing: "0.02em"
             }}>
-              © 2025 Hyphertext · Bengaluru, India
+              © 2026 Hyphertext · All Rights Reserved
             </span>
 
             <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>

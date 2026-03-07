@@ -274,7 +274,7 @@ export default function AboutPage() {
               </span>
             </Link>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.75rem", color: "#bbb", fontWeight: 400, letterSpacing: "0.02em" }}>
-              © 2025 Hyphertext · Bengaluru, India
+              © 2026 Hyphertext · All Rights Reserved
             </span>
             <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
               {[["About", "/about"], ["Pricing", "/pricing"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([label, href]) => (
