@@ -101,7 +101,7 @@ export default function StudioNav({
       return;
     }
     if (updated) {
-      onPageUpdate({ is_published: true, caption: caption.trim() || null, show_on_profile: showOnProfile, ...updated });
+      onPageUpdate({ ...updated, is_published: true, caption: caption.trim() || null, show_on_profile: showOnProfile });
       setPublishOpen(false);
     }
   };
