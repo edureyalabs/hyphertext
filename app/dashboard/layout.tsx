@@ -20,22 +20,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     const checkSession = async () => {
       let session = await getSession();
-
-      // After Google OAuth the server sets the cookie, but the Supabase
-      // browser client can lag by a few hundred ms reading it on first load.
-      // One retry after a short wait reliably resolves the race condition.
       if (!session) {
         await new Promise(r => setTimeout(r, 600));
         session = await getSession();
       }
-
       if (!session) {
         router.replace('/auth');
         return;
       }
-
       setUser(session.user);
-
       supabase
         .from('profiles')
         .select('username')
@@ -44,10 +37,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .then(({ data }) => {
           if (data?.username) setUsername(data.username);
         });
-
       setLoading(false);
     };
-
     checkSession();
   }, [router]);
 
@@ -79,7 +70,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const initials = user?.email ? user.email[0].toUpperCase() : '?';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f7f4', fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", display: 'flex', flexDirection: 'column' }}>
+    <div style={{
+      height: '100vh',
+      background: '#f8f7f4',
+      fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden', // ← lock the outer shell
+    }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&display=swap');
         * { box-sizing: border-box; }
@@ -136,7 +134,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .dropdown-divider { height: 1px; background: #f0ede8; }
       `}</style>
 
-      <header style={{ height: '52px', background: '#fff', borderBottom: '1px solid #e8e6e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', flexShrink: 0, position: 'sticky', top: 0, zIndex: 50 }}>
+      <header style={{
+        height: '52px',
+        flexShrink: 0, // ← never shrink the header
+        background: '#fff',
+        borderBottom: '1px solid #e8e6e1',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 1.5rem',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+      }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', textDecoration: 'none' }}>
           <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: '50%' }} />
           <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: '#111', letterSpacing: '0.01em' }}>hyphertext</span>
@@ -205,7 +215,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* min-height:0 is the key flex trick — lets the child shrink below its content size */}
+      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {children}
       </main>
     </div>

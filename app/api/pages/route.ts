@@ -1,7 +1,8 @@
+// app/api/pages/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient();
 
@@ -10,17 +11,28 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const limit  = Math.min(parseInt(searchParams.get('limit')  ?? '20', 10), 50);
+    const offset = Math.max(parseInt(searchParams.get('offset') ?? '0',  10), 0);
+
+    const { data, error, count } = await supabase
       .from('pages')
-      .select('id, title, is_published, hosting_status, page_source, created_at, updated_at')
+      .select('id, title, is_published, hosting_status, page_source, created_at, updated_at', { count: 'exact' })
       .eq('owner_id', user.id)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ pages: data ?? [] });
+    return NextResponse.json({
+      pages: data ?? [],
+      total: count ?? 0,
+      limit,
+      offset,
+      hasMore: (count ?? 0) > offset + limit,
+    });
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
