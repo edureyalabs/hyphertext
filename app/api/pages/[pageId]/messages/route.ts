@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { content, model_id } = await request.json();
+    const { content, model_id, inference_mode } = await request.json();
 
     if (!content?.trim()) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 });
@@ -75,6 +75,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         status: 'pending',
         message_type: 'chat',
         model_id: model_id ?? null,
+        inference_mode: inference_mode ?? null,
         meta: {},
       })
       .select()

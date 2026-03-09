@@ -90,6 +90,8 @@ export default function StudioPage() {
   const [expandedThinking, setExpandedThinking]             = useState<Record<string, boolean>>({});
 
   // Inference mode
+  // modeLocked = true once the page has ever had a message sent (mode is frozen)
+  // inferenceMode = the mode used for this page (persisted in DB after first send)
   const [inferenceMode, setInferenceMode] = useState<InferenceMode>('economy');
   const [modeLocked, setModeLocked]       = useState(false);
   const [modeLockLabel, setModeLockLabel] = useState('');
@@ -145,11 +147,6 @@ export default function StudioPage() {
       setPage(pageData);
       setEditedCode(pageData.html_content);
 
-      const persistedMode = (pageData as any).inference_mode as InferenceMode | undefined;
-      if (persistedMode === 'economy' || persistedMode === 'speed') {
-        setInferenceMode(persistedMode);
-      }
-
       const [msgList, assetList, versionList] = await Promise.all([
         getMessages(pageId),
         listAssets(pageId),
@@ -159,11 +156,23 @@ export default function StudioPage() {
       setAssets(assetList);
       setVersions(versionList);
 
+      // ── Restore inference mode from DB ────────────────────────────────────
+      // Only treat the DB value as locked if the page already has messages.
+      // A DB default of 'economy' on a brand-new page must NOT lock the toggle —
+      // the user hasn't chosen yet.
+      const persistedMode = pageData.inference_mode;
       const hadPriorMessages = msgList.length > 0;
+
       if (hadPriorMessages) {
         setHasEverSentMessage(true);
         setModeLocked(true);
+        // Restore whichever mode was used — fall back to 'economy' if null.
+        if (persistedMode === 'economy' || persistedMode === 'speed') {
+          setInferenceMode(persistedMode);
+        }
       }
+      // If no messages yet, leave inferenceMode at default 'economy' and
+      // modeLocked at false so the toggle is visible and usable.
 
       const running = deriveAgentRunning(msgList);
       setAgentRunning(running);
@@ -187,8 +196,16 @@ export default function StudioPage() {
     const pageChannel = supabaseRealtime
       .channel(`page-${pageId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${pageId}` }, (payload) => {
-        setPage(prev => prev ? { ...prev, ...(payload.new as Page) } : prev);
-        if (!hasUnsyncedChanges) setEditedCode((payload.new as Page).html_content);
+        const updatedPage = payload.new as Page;
+        setPage(prev => prev ? { ...prev, ...updatedPage } : prev);
+        if (!hasUnsyncedChanges) setEditedCode(updatedPage.html_content);
+
+        // If the backend just persisted inference_mode, sync UI to match.
+        // This closes the gap between "user clicked speed" and "DB confirmed it".
+        if (updatedPage.inference_mode === 'economy' || updatedPage.inference_mode === 'speed') {
+          setInferenceMode(updatedPage.inference_mode);
+          setModeLocked(true);
+        }
       })
       .subscribe();
 
@@ -261,9 +278,14 @@ export default function StudioPage() {
     const text = input.trim();
     const isFirstMessage = !hasEverSentMessage;
 
+    // ── Mode locking ──────────────────────────────────────────────────────
+    // On the first message we lock the mode UI immediately for responsiveness,
+    // but the DB is the true source of truth. The realtime page UPDATE event
+    // (fired when the backend calls update_page_inference_mode) will sync the
+    // UI back if anything differs. This prevents the UI/DB out-of-sync bug.
     if (isFirstMessage && !modeLocked) {
       setModeLocked(true);
-      const label = inferenceMode === 'speed' ? '⚡ Speed locked' : 'Economy locked';
+      const label = inferenceMode === 'speed' ? '⚡ Speed locked in' : 'Economy locked in';
       setModeLockLabel(label);
       setTimeout(() => setModeLockLabel(''), 3000);
     }
@@ -295,7 +317,13 @@ export default function StudioPage() {
       );
     }
 
-    const { error } = await sendMessage(pageId, text, isFirstMessage ? inferenceMode : undefined);
+    // Pass inferenceMode only on the first message. The backend ignores it
+    // on subsequent messages once pages.inference_mode is set.
+    const { error } = await sendMessage(
+      pageId,
+      text,
+      isFirstMessage ? inferenceMode : undefined,
+    );
     if (error) setAgentRunning(false);
   };
 
