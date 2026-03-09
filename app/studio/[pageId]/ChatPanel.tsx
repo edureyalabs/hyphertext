@@ -12,6 +12,9 @@ const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 type ChatTab = 'chat' | 'files';
 type InferenceMode = 'economy' | 'speed';
 
+// 7 lines × ~22px per line (0.85rem at 1.5 line-height ≈ 20.4px) + padding
+const MAX_TEXTAREA_HEIGHT = 168;
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -72,6 +75,8 @@ interface ChatPanelProps {
   deletingAssetId: string | null;
   expandedThinking: Record<string, boolean>;
   onToggleThinking: (msgId: string) => void;
+  showVersions: boolean;
+  onToggleVersions: () => void;
 }
 
 export default function ChatPanel({
@@ -97,6 +102,8 @@ export default function ChatPanel({
   deletingAssetId,
   expandedThinking,
   onToggleThinking,
+  showVersions,
+  onToggleVersions,
 }: ChatPanelProps) {
   const router = useRouter();
   const [chatTab, setChatTab] = useState<ChatTab>('chat');
@@ -109,10 +116,36 @@ export default function ChatPanel({
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Reset textarea height when input is cleared (e.g. after send)
+  useEffect(() => {
+    if (!input && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.overflowY = 'hidden';
+    }
+  }, [input]);
+
+  const resizeTextarea = (el: HTMLTextAreaElement) => {
+    el.style.height = 'auto';
+    const next = el.scrollHeight;
+    if (next <= MAX_TEXTAREA_HEIGHT) {
+      el.style.height = next + 'px';
+      el.style.overflowY = 'hidden'; // no scrollbar while still growing
+    } else {
+      el.style.height = MAX_TEXTAREA_HEIGHT + 'px';
+      el.style.overflowY = 'auto';   // scrollbar appears only at cap
+    }
+  };
+
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onInputChange(e.target.value);
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+    resizeTextarea(e.target);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
   };
 
   const renderThinkingBlock = (msg: ChatMessage) => {
@@ -226,7 +259,7 @@ export default function ChatPanel({
   );
 
   return (
-    <div style={{ flex: '0 0 28%', minWidth: '300px', maxWidth: '480px', display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#fff', position: 'relative', overflow: 'hidden' }}>
       <style>{`
         .chat-tab-btn { background: transparent; border: none; padding: 0.3rem 0.7rem; font-size: 0.72rem; font-family: 'DM Mono', monospace; color: #bbb; cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.12s, border-color 0.12s; }
         .chat-tab-btn:hover { color: #555; }
@@ -240,8 +273,33 @@ export default function ChatPanel({
         .chat-msg { animation: fadeUp 0.2s ease both; max-width: 90%; line-height: 1.55; }
         .user-msg { background: #111; color: #f8f7f4; border-radius: 12px 12px 3px 12px; padding: 0.65rem 0.9rem; font-size: 0.82rem; font-weight: 300; }
         .assistant-msg { background: #fff; color: #111; border: 1px solid #e8e6e1; border-radius: 3px 12px 12px 12px; padding: 0.65rem 0.9rem; font-size: 0.82rem; font-weight: 300; }
-        .chat-input { flex: 1; border: none; outline: none; resize: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 300; color: #111; line-height: 1.5; min-height: 20px; max-height: 120px; overflow-y: auto; }
+
+        .chat-input {
+          width: 100%;
+          border: none;
+          outline: none;
+          resize: none;
+          background: transparent;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.85rem;
+          font-weight: 300;
+          color: #111;
+          line-height: 1.6;
+          /* Start at 1 row, grow up to 7 via JS — no fixed height here */
+          min-height: 22px;
+          max-height: ${MAX_TEXTAREA_HEIGHT}px;
+          overflow-y: hidden; /* JS toggles to auto at cap */
+          display: block;
+          /* Smooth height transition feels more polished */
+          transition: height 0.08s ease;
+        }
         .chat-input::placeholder { color: #bbb; }
+        /* Thin, subtle scrollbar when capped */
+        .chat-input::-webkit-scrollbar { width: 3px; }
+        .chat-input::-webkit-scrollbar-track { background: transparent; }
+        .chat-input::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+        .chat-input::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
         .staged-file-chip { display: flex; align-items: center; gap: 0.3rem; background: #f0ede8; border: 1px solid #e0ddd8; border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.72rem; color: #555; max-width: 120px; }
         .staged-file-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
         .mode-toggle { display: flex; background: #f0ede8; border: 1px solid #e8e6e1; border-radius: 100px; padding: 2px; gap: 2px; }
@@ -250,11 +308,14 @@ export default function ChatPanel({
         .mode-btn.active.economy { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .mode-btn.active.speed { background: #111; color: #f8f7f4; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
         .mode-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-        .mode-lock-badge { font-family: 'DM Mono', monospace; font-size: 0.62rem; padding: 0.15rem 0.5rem; border-radius: 100px; display: flex; align-items: center; gap: 0.2rem; }
+        .mode-lock-badge { font-family: 'DM Mono', monospace; font-size: 0.62rem; padding: 0.15rem 0.5rem; border-radius: 100px; display: flex; align-items: center; gap: 0.2rem; white-space: nowrap; }
+        .versions-btn { background: transparent; border: 1px solid #e8e6e1; border-radius: 3px; padding: 0.28rem 0.45rem; cursor: pointer; color: #aaa; display: flex; align-items: center; justify-content: center; transition: all 0.13s; flex-shrink: 0; }
+        .versions-btn:hover { border-color: #bbb; color: #555; background: #faf9f7; }
+        .versions-btn.active { border-color: #bbb; color: #555; background: #f5f3ef; }
       `}</style>
 
       {/* Tab bar */}
-      <div style={{ padding: '0 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0, display: 'flex', alignItems: 'center', height: '42px' }}>
+      <div style={{ padding: '0 0.75rem 0 1rem', borderBottom: '1px solid #f0ede8', flexShrink: 0, display: 'flex', alignItems: 'center', height: '42px', gap: '0.35rem' }}>
         <button className={`chat-tab-btn${chatTab === 'chat' ? ' active' : ''}`} onClick={() => setChatTab('chat')}>chat</button>
         <button className={`chat-tab-btn${chatTab === 'files' ? ' active' : ''}`} onClick={() => setChatTab('files')} style={{ position: 'relative' }}>
           files
@@ -265,17 +326,26 @@ export default function ChatPanel({
           )}
         </button>
 
-        {/* Mode badge (locked state, shown in tab bar) */}
-        {modeLocked && (
-          <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          {modeLocked && (
             <span className="mode-lock-badge" style={{ background: inferenceMode === 'speed' ? '#111' : '#f0ede8', color: inferenceMode === 'speed' ? '#f8f7f4' : '#888' }}>
               {inferenceMode === 'speed' ? '⚡ speed' : 'economy'}
             </span>
-          </div>
-        )}
+          )}
+          <button
+            className={`versions-btn${showVersions ? ' active' : ''}`}
+            onClick={onToggleVersions}
+            title="Version history"
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M7 4v3.5l2 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {/* ── Chat tab ────────────────────────────────────────────────────── */}
+      {/* ── Chat tab ── */}
       {chatTab === 'chat' && (
         <>
           <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -292,14 +362,12 @@ export default function ChatPanel({
             )}
             {messages.map(msg => renderMessage(msg))}
 
-            {/* Agent status indicator */}
             {hasEverSentMessage && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem', paddingTop: '0.25rem' }}>
                 {isAgentRunning
                   ? <Lottie animationData={loadingAnimationData} loop={true} style={{ width: '72px', height: '72px' }} />
                   : <Image src="/loader.png" alt="idle" width={24} height={24} style={{ objectFit: 'contain' }} />
                 }
-                {/* Slow warning — shown after 90s but spinner stays alive */}
                 {agentSlowWarning && isAgentRunning && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.35rem 0.6rem', maxWidth: '240px' }}>
                     <span style={{ fontSize: '0.65rem' }}>⏳</span>
@@ -313,8 +381,8 @@ export default function ChatPanel({
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Input area */}
-          <div style={{ padding: '0.75rem', borderTop: '1px solid #f0ede8', flexShrink: 0 }}>
+          {/* Input area — flexShrink:0 so it never compresses, grows with textarea */}
+          <div style={{ flexShrink: 0, padding: '0.75rem', borderTop: '1px solid #f0ede8' }}>
             {awaitingClarification && (
               <div style={{ marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
@@ -322,7 +390,6 @@ export default function ChatPanel({
               </div>
             )}
 
-            {/* Staged files */}
             {stagedFiles.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.5rem' }}>
                 {stagedFiles.map((f, i) => (
@@ -337,7 +404,6 @@ export default function ChatPanel({
               </div>
             )}
 
-            {/* Upload progress */}
             {pendingUploads.length > 0 && (
               <div style={{ marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 {pendingUploads.map(u => (
@@ -352,9 +418,8 @@ export default function ChatPanel({
               </div>
             )}
 
-            {/* Inference mode toggle (pre-first-send only) */}
             {!modeLocked && (
-              <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div className="mode-toggle">
                     <button
@@ -379,7 +444,6 @@ export default function ChatPanel({
               </div>
             )}
 
-            {/* Lock-in confirmation label */}
             {modeLockLabel && (
               <div style={{ marginBottom: '0.4rem' }}>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#aaa', animation: 'fadeIn 0.2s ease both' }}>
@@ -388,15 +452,24 @@ export default function ChatPanel({
               </div>
             )}
 
-            {/* Text input box */}
-            <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* Input box — grows with textarea, send button anchors to bottom-right */}
+            <div style={{
+              background: '#f8f7f4',
+              border: '1px solid #e8e6e1',
+              borderRadius: '8px',
+              padding: '0.65rem 0.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              transition: 'border-color 0.15s',
+            }}>
               <textarea
                 ref={textareaRef}
                 className="chat-input"
                 placeholder={isAgentRunning ? 'generating...' : awaitingClarification ? 'type your answer...' : 'describe a change...'}
                 value={input}
                 onChange={handleTextareaChange}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+                onKeyDown={handleKeyDown}
                 disabled={isAgentRunning}
                 rows={1}
               />
@@ -411,6 +484,7 @@ export default function ChatPanel({
                 </button>
               </div>
             </div>
+
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#ddd', marginTop: '0.4rem', textAlign: 'center' }}>
               enter to send · shift+enter for newline
             </p>
@@ -418,7 +492,7 @@ export default function ChatPanel({
         </>
       )}
 
-      {/* ── Files tab ────────────────────────────────────────────────────── */}
+      {/* ── Files tab ── */}
       {chatTab === 'files' && (
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {assets.length === 0 && pendingUploads.length === 0 ? (

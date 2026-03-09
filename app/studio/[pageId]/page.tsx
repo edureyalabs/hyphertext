@@ -21,9 +21,9 @@ import {
   type PageVersion,
 } from '@/lib/api';
 import { createBrowserClient } from '@supabase/ssr';
-import StudioNav    from './StudioNav';
-import PreviewPane  from './PreviewPane';
-import ChatPanel    from './ChatPanel';
+import StudioNav     from './StudioNav';
+import PreviewPane   from './PreviewPane';
+import ChatPanel     from './ChatPanel';
 import VersionsPanel from './VersionsPanel';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -31,8 +31,6 @@ type ViewMode      = 'preview' | 'mobile' | 'code';
 type InferenceMode = 'economy' | 'speed';
 
 // ── Constants ────────────────────────────────────────────────────────────────
-// No hard kill timeout — agent runs until realtime signals completion.
-// After AGENT_SLOW_MS we show a "still working" hint but keep spinner alive.
 const AGENT_SLOW_MS = 90_000;
 
 const ALLOWED_TYPES = [
@@ -68,42 +66,39 @@ export default function StudioPage() {
   const pageId = params.pageId as string;
 
   // Core data
-  const [page, setPage]       = useState<Page | null>(null);
+  const [page, setPage]         = useState<Page | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [assets, setAssets]     = useState<PageAsset[]>([]);
   const [versions, setVersions] = useState<PageVersion[]>([]);
   const [loading, setLoading]   = useState(true);
 
   // Upload state
-  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
-  const [stagedFiles, setStagedFiles]       = useState<File[]>([]);
-  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [pendingUploads, setPendingUploads]     = useState<PendingUpload[]>([]);
+  const [stagedFiles, setStagedFiles]           = useState<File[]>([]);
+  const [deletingAssetId, setDeletingAssetId]   = useState<string | null>(null);
 
   // Version panel
   const [showVersions, setShowVersions] = useState(false);
   const [revertingId, setRevertingId]   = useState<string | null>(null);
 
   // Chat state
-  const [input, setInput]                         = useState('');
-  const [isAgentRunning, setIsAgentRunning]       = useState(false);
-  const [agentSlowWarning, setAgentSlowWarning]   = useState(false);
-  const [awaitingClarification, setAwaitingClarification] = useState(false);
-  const [hasEverSentMessage, setHasEverSentMessage]       = useState(false);
-  const [expandedThinking, setExpandedThinking]           = useState<Record<string, boolean>>({});
+  const [input, setInput]                                   = useState('');
+  const [isAgentRunning, setIsAgentRunning]                 = useState(false);
+  const [agentSlowWarning, setAgentSlowWarning]             = useState(false);
+  const [awaitingClarification, setAwaitingClarification]   = useState(false);
+  const [hasEverSentMessage, setHasEverSentMessage]         = useState(false);
+  const [expandedThinking, setExpandedThinking]             = useState<Record<string, boolean>>({});
 
-  // ── Inference mode ──────────────────────────────────────────────────────
-  // Source of truth: pages.inference_mode (persisted in DB).
-  // On first load, read from page record. Lock after first message sent.
-  // This means refreshes always restore the correct mode from DB.
+  // Inference mode
   const [inferenceMode, setInferenceMode] = useState<InferenceMode>('economy');
   const [modeLocked, setModeLocked]       = useState(false);
   const [modeLockLabel, setModeLockLabel] = useState('');
 
   // View + code editor
-  const [viewMode, setViewMode]       = useState<ViewMode>('preview');
-  const [editedCode, setEditedCode]   = useState<string | null>(null);
-  const [syncing, setSyncing]         = useState(false);
-  const [syncDone, setSyncDone]       = useState(false);
+  const [viewMode, setViewMode]     = useState<ViewMode>('preview');
+  const [editedCode, setEditedCode] = useState<string | null>(null);
+  const [syncing, setSyncing]       = useState(false);
+  const [syncDone, setSyncDone]     = useState(false);
 
   // Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -113,20 +108,17 @@ export default function StudioPage() {
   const [isDragOver, setIsDragOver] = useState(false);
 
   // Refs
-  const fileInputRef      = useRef<HTMLInputElement>(null);
-  const slowTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Tracks whether we should stay in "running" state — only flipped to false
-  // by realtime completed/error events, never by a timeout.
-  const agentRunningRef   = useRef(false);
+  const fileInputRef    = useRef<HTMLInputElement>(null);
+  const slowTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agentRunningRef = useRef(false);
 
   const hasUnsyncedChanges = editedCode !== null && editedCode !== (page?.html_content ?? '');
 
-  // ── Slow-warning timer (NOT a kill timer) ───────────────────────────────
+  // ── Slow-warning timer ───────────────────────────────────────────────────
   const startSlowTimer = useCallback(() => {
     if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
     setAgentSlowWarning(false);
     slowTimerRef.current = setTimeout(() => {
-      // Only show warning if agent is genuinely still running
       if (agentRunningRef.current) setAgentSlowWarning(true);
     }, AGENT_SLOW_MS);
   }, []);
@@ -153,9 +145,6 @@ export default function StudioPage() {
       setPage(pageData);
       setEditedCode(pageData.html_content);
 
-      // ── Restore inference mode from DB (fixes refresh state loss) ──────
-      // The pages table has an inference_mode column. getPage() must select it.
-      // We cast because the type may not yet include the field.
       const persistedMode = (pageData as any).inference_mode as InferenceMode | undefined;
       if (persistedMode === 'economy' || persistedMode === 'speed') {
         setInferenceMode(persistedMode);
@@ -173,7 +162,6 @@ export default function StudioPage() {
       const hadPriorMessages = msgList.length > 0;
       if (hadPriorMessages) {
         setHasEverSentMessage(true);
-        // Mode was already chosen for this page — lock it
         setModeLocked(true);
       }
 
@@ -217,8 +205,6 @@ export default function StudioPage() {
         if (payload.eventType === 'UPDATE') {
           const updatedMsg = payload.new as ChatMessage;
           setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
-
-          // ── Only realtime events stop the spinner — never a timeout ──
           if (updatedMsg.status === 'completed' || updatedMsg.status === 'error') {
             setAgentRunning(false);
             getPageVersions(pageId).then(setVersions);
@@ -275,7 +261,6 @@ export default function StudioPage() {
     const text = input.trim();
     const isFirstMessage = !hasEverSentMessage;
 
-    // Lock mode on first send
     if (isFirstMessage && !modeLocked) {
       setModeLocked(true);
       const label = inferenceMode === 'speed' ? '⚡ Speed locked' : 'Economy locked';
@@ -289,7 +274,6 @@ export default function StudioPage() {
     setHasEverSentMessage(true);
     if (awaitingClarification) setAwaitingClarification(false);
 
-    // Upload staged files first
     if (stagedFiles.length > 0) {
       const filesToUpload = [...stagedFiles];
       setStagedFiles([]);
@@ -311,7 +295,6 @@ export default function StudioPage() {
       );
     }
 
-    // Pass inference_mode only on first message
     const { error } = await sendMessage(pageId, text, isFirstMessage ? inferenceMode : undefined);
     if (error) setAgentRunning(false);
   };
@@ -361,6 +344,12 @@ export default function StudioPage() {
     router.replace('/dashboard/projects');
   };
 
+  // ── Versions toggle ──────────────────────────────────────────────────────
+  const handleToggleVersions = () => {
+    setShowVersions(v => !v);
+    if (!showVersions) getPageVersions(pageId).then(setVersions);
+  };
+
   // ── Loading screen ───────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -383,10 +372,10 @@ export default function StudioPage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&display=swap');
         * { box-sizing: border-box; }
         ::selection { background: #111; color: #f8f7f4; }
-        @keyframes spin   { to { transform: rotate(360deg); } }
-        @keyframes pulse  { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-        @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes spin    { to { transform: rotate(360deg); } }
+        @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+        @keyframes fadeUp  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
         @keyframes modalIn { from { opacity:0; transform:scale(0.97) translateY(4px); } to { opacity:1; transform:scale(1) translateY(0); } }
       `}</style>
 
@@ -440,9 +429,10 @@ export default function StudioPage() {
           onSyncCode={handleSyncCode}
         />
 
-        {/* Chat pane (with versions panel overlay) */}
-        <div style={{ flex: '0 0 28%', minWidth: '300px', maxWidth: '480px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-          {/* Version history panel */}
+        {/* Chat pane wrapper — owns the flex sizing */}
+        <div style={{ flex: '0 0 28%', minWidth: '300px', maxWidth: '480px', position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+          {/* Version history panel — overlays from top of this container */}
           {showVersions && (
             <VersionsPanel
               versions={versions}
@@ -451,22 +441,6 @@ export default function StudioPage() {
               onClose={() => setShowVersions(false)}
             />
           )}
-
-          {/* Versions toggle button */}
-          <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 50 }}>
-            <button
-              onClick={() => { setShowVersions(v => !v); if (!showVersions) getPageVersions(pageId).then(setVersions); }}
-              title="Version history"
-              style={{ background: 'transparent', border: '1px solid #e8e6e1', borderRadius: '3px', padding: '0.28rem 0.45rem', cursor: 'pointer', color: '#aaa', display: 'flex', alignItems: 'center', transition: 'all 0.13s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#bbb'; e.currentTarget.style.color = '#555'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e8e6e1'; e.currentTarget.style.color = '#aaa'; }}
-            >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M7 4v3.5l2 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-            </button>
-          </div>
 
           <ChatPanel
             messages={messages}
@@ -491,6 +465,8 @@ export default function StudioPage() {
             deletingAssetId={deletingAssetId}
             expandedThinking={expandedThinking}
             onToggleThinking={(id) => setExpandedThinking(prev => ({ ...prev, [id]: !prev[id] }))}
+            showVersions={showVersions}
+            onToggleVersions={handleToggleVersions}
           />
         </div>
       </div>
