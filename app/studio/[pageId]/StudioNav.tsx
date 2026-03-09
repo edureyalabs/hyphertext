@@ -16,12 +16,15 @@ interface StudioNavProps {
   onViewModeChange: (m: ViewMode) => void;
   isAgentRunning: boolean;
   inferenceMode: InferenceMode;
+  onInferenceModeChange: (mode: InferenceMode) => void;
   hasUnsyncedChanges: boolean;
   syncing: boolean;
   syncDone: boolean;
   onSyncCode: () => void;
   onDeleteClick: () => void;
   onPageUpdate: (updated: Partial<Page>) => void;
+  showVersions: boolean;
+  onToggleVersions: () => void;
 }
 
 export default function StudioNav({
@@ -31,12 +34,15 @@ export default function StudioNav({
   onViewModeChange,
   isAgentRunning,
   inferenceMode,
+  onInferenceModeChange,
   hasUnsyncedChanges,
   syncing,
   syncDone,
   onSyncCode,
   onDeleteClick,
   onPageUpdate,
+  showVersions,
+  onToggleVersions,
 }: StudioNavProps) {
   const router = useRouter();
 
@@ -59,13 +65,11 @@ export default function StudioNav({
   const [urlCopied, setUrlCopied]           = useState(false);
   const publishPanelRef = useRef<HTMLDivElement>(null);
 
-  // Sync page prop changes into panel state
   useEffect(() => {
     setCaption(page.caption ?? '');
     setShowOnProfile(page.show_on_profile ?? true);
   }, [page.caption, page.show_on_profile]);
 
-  // Close publish panel on outside click
   useEffect(() => {
     if (!publishOpen) return;
     const handler = (e: MouseEvent) => {
@@ -142,7 +146,7 @@ export default function StudioNav({
       justifyContent: 'space-between',
       padding: '0 1rem',
       flexShrink: 0,
-      gap: '1rem',
+      gap: '0.75rem',
     }}>
       <style>{`
         .snav-tab { background: transparent; border: none; padding: 0.35rem 0.75rem; font-size: 0.78rem; font-family: 'DM Sans', sans-serif; font-weight: 400; color: #999; cursor: pointer; border-radius: 3px; transition: background 0.12s, color 0.12s; }
@@ -191,33 +195,45 @@ export default function StudioNav({
         .profile-toggle-btn { display: inline-flex; align-items: center; gap: 0.35rem; background: transparent; border: 1px solid #e8e6e1; border-radius: 3px; padding: 0.3rem 0.6rem; font-size: 0.72rem; font-family: 'DM Mono', monospace; color: #aaa; cursor: pointer; transition: all 0.15s; }
         .profile-toggle-btn:hover { border-color: #bbb; color: #555; background: #faf9f7; }
         .profile-toggle-btn.visible { border-color: #111; color: #111; background: #f5f3ef; }
+
+        /* ── Mode toggle in nav ── */
+        .nav-mode-toggle { display: flex; background: #f0ede8; border: 1px solid #e8e6e1; border-radius: 100px; padding: 2px; gap: 2px; }
+        .nav-mode-btn { border: none; background: transparent; border-radius: 100px; padding: 0.2rem 0.55rem; font-size: 0.68rem; font-family: 'DM Mono', monospace; cursor: pointer; transition: background 0.15s, color 0.15s; color: #aaa; display: flex; align-items: center; gap: 0.2rem; white-space: nowrap; }
+        .nav-mode-btn:hover:not(:disabled) { color: #555; }
+        .nav-mode-btn.active.economy { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .nav-mode-btn.active.speed { background: #111; color: #f8f7f4; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+        .nav-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .versions-btn { background: transparent; border: 1px solid #e8e6e1; border-radius: 3px; padding: 0.28rem 0.45rem; cursor: pointer; color: #aaa; display: flex; align-items: center; justify-content: center; transition: all 0.13s; flex-shrink: 0; }
+        .versions-btn:hover { border-color: #bbb; color: #555; background: #faf9f7; }
+        .versions-btn.active { border-color: #bbb; color: #555; background: #f5f3ef; }
       `}</style>
 
-      {/* ── Left: logo + title + agent status ───────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+      {/* ── Left: logo + title + agent status ─────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
         <Link href="/dashboard/projects" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', flexShrink: 0 }}>
           <Image src="/logo.png" alt="Hyphertext" width={22} height={22} style={{ borderRadius: '50%' }} />
         </Link>
         <span style={{ color: '#ddd', fontSize: '0.75rem' }}>/</span>
-        <span style={{ fontSize: '0.85rem', fontWeight: 400, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+        <span style={{ fontSize: '0.85rem', fontWeight: 400, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
           {page.title}
         </span>
         {isAgentRunning && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '100px', padding: '0.2rem 0.6rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '100px', padding: '0.2rem 0.6rem', flexShrink: 0 }}>
             <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1s infinite' }} />
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#888' }}>generating</span>
             {inferenceMode === 'speed' && <span style={{ fontSize: '0.65rem' }}>⚡</span>}
           </div>
         )}
         {isSuspended && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '100px', padding: '0.2rem 0.6rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '100px', padding: '0.2rem 0.6rem', flexShrink: 0 }}>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#92400e' }}>hosting suspended</span>
           </div>
         )}
       </div>
 
-      {/* ── Centre: view mode tabs ───────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '0.2rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '5px', padding: '0.2rem' }}>
+      {/* ── Centre: view mode tabs ─────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: '0.2rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '5px', padding: '0.2rem', flexShrink: 0 }}>
         {(['preview', 'mobile', 'code'] as ViewMode[]).map(mode => (
           <button
             key={mode}
@@ -229,8 +245,8 @@ export default function StudioNav({
         ))}
       </div>
 
-      {/* ── Right: actions ──────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+      {/* ── Right: actions ────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, flex: 1, justifyContent: 'flex-end' }}>
 
         {/* Sync code button (code view only) */}
         {viewMode === 'code' && hasUnsyncedChanges && (
@@ -243,7 +259,7 @@ export default function StudioNav({
           </button>
         )}
 
-        {/* Live URL actions (when live) */}
+        {/* Live URL actions */}
         {isLive && (
           <div style={{ display: 'flex', gap: '0.3rem' }}>
             <button className={`pub-url-btn${urlCopied ? ' copied' : ''}`} onClick={handleCopyUrl}>
@@ -284,7 +300,41 @@ export default function StudioNav({
           </span>
         </button>
 
-        {/* Version history button — passed as slot via children or handled in parent */}
+        {/* ── Inference mode toggle — always visible, always switchable ── */}
+        <div
+          className="nav-mode-toggle"
+          title={isAgentRunning ? 'Cannot switch mode while generating' : 'Switch inference mode'}
+        >
+          <button
+            className={`nav-mode-btn${inferenceMode === 'economy' ? ' active economy' : ''}`}
+            onClick={() => !isAgentRunning && onInferenceModeChange('economy')}
+            disabled={isAgentRunning}
+            title="Economy: Together AI — lower cost"
+          >
+            Eco
+          </button>
+          <button
+            className={`nav-mode-btn${inferenceMode === 'speed' ? ' active speed' : ''}`}
+            onClick={() => !isAgentRunning && onInferenceModeChange('speed')}
+            disabled={isAgentRunning}
+            title="Speed: Cerebras — ~1000 tokens/sec"
+          >
+            ⚡
+          </button>
+        </div>
+
+        {/* Version history */}
+        <button
+          className={`versions-btn${showVersions ? ' active' : ''}`}
+          onClick={onToggleVersions}
+          title="Version history"
+        >
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M7 4v3.5l2 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+        </button>
+
         {/* Delete */}
         <button className="snav-btn" onClick={onDeleteClick}>
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
@@ -322,8 +372,6 @@ export default function StudioNav({
                 <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 0.8rem' }}>
                   {isLive ? 'publishing settings' : 'publish site'}
                 </p>
-
-                {/* Caption */}
                 <div style={{ marginBottom: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.28rem' }}>
                     <label style={{ fontSize: '0.72rem', color: '#555', fontWeight: 400 }}>Caption</label>
@@ -341,14 +389,10 @@ export default function StudioNav({
                     onBlur={e => e.target.style.borderColor = '#e0ddd8'}
                   />
                 </div>
-
-                {/* Show on profile toggle */}
                 <div className="toggle-row">
                   <div>
                     <p style={{ margin: 0, fontSize: '0.75rem', color: '#333', fontWeight: 400 }}>Show on profile</p>
-                    <p style={{ margin: '0.1rem 0 0', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb' }}>
-                      visible on your public profile
-                    </p>
+                    <p style={{ margin: '0.1rem 0 0', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb' }}>visible on your public profile</p>
                   </div>
                   <button
                     className={`toggle-switch${showOnProfile ? ' on' : ''}`}
@@ -359,8 +403,6 @@ export default function StudioNav({
                   </button>
                 </div>
               </div>
-
-              {/* Error */}
               {publishError && (
                 <div style={{ padding: '0.5rem 1rem', background: '#fff5f5', borderBottom: '1px solid #fecaca' }}>
                   <p style={{ margin: 0, fontSize: '0.72rem', color: '#c53030', fontWeight: 300 }}>{publishError}</p>
@@ -369,17 +411,11 @@ export default function StudioNav({
                   </button>
                 </div>
               )}
-
-              {/* Action buttons */}
               <div style={{ padding: '0.7rem 1rem', display: 'flex', gap: '0.45rem', justifyContent: 'flex-end' }}>
                 {isLive ? (
                   <>
-                    <button className="pub-action-secondary" onClick={handleUnpublish} disabled={unpublishing}>
-                      {unpublishing ? 'Unpublishing…' : 'Unpublish'}
-                    </button>
-                    <button className="pub-action-primary" onClick={handleSaveMeta} disabled={savingMeta}>
-                      {metaSaved ? '✓ Saved' : savingMeta ? 'Saving…' : 'Save'}
-                    </button>
+                    <button className="pub-action-secondary" onClick={handleUnpublish} disabled={unpublishing}>{unpublishing ? 'Unpublishing…' : 'Unpublish'}</button>
+                    <button className="pub-action-primary" onClick={handleSaveMeta} disabled={savingMeta}>{metaSaved ? '✓ Saved' : savingMeta ? 'Saving…' : 'Save'}</button>
                   </>
                 ) : (
                   <button className="pub-action-primary" onClick={handlePublish} disabled={publishing} style={{ width: '100%' }}>

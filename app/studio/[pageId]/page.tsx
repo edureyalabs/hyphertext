@@ -89,12 +89,8 @@ export default function StudioPage() {
   const [hasEverSentMessage, setHasEverSentMessage]         = useState(false);
   const [expandedThinking, setExpandedThinking]             = useState<Record<string, boolean>>({});
 
-  // Inference mode
-  // modeLocked = true once the page has ever had a message sent (mode is frozen)
-  // inferenceMode = the mode used for this page (persisted in DB after first send)
+  // Inference mode — mutable at any time, no locking
   const [inferenceMode, setInferenceMode] = useState<InferenceMode>('economy');
-  const [modeLocked, setModeLocked]       = useState(false);
-  const [modeLockLabel, setModeLockLabel] = useState('');
 
   // View + code editor
   const [viewMode, setViewMode]     = useState<ViewMode>('preview');
@@ -156,23 +152,15 @@ export default function StudioPage() {
       setAssets(assetList);
       setVersions(versionList);
 
-      // ── Restore inference mode from DB ────────────────────────────────────
-      // Only treat the DB value as locked if the page already has messages.
-      // A DB default of 'economy' on a brand-new page must NOT lock the toggle —
-      // the user hasn't chosen yet.
+      // Restore inference mode from DB
       const persistedMode = pageData.inference_mode;
-      const hadPriorMessages = msgList.length > 0;
-
-      if (hadPriorMessages) {
-        setHasEverSentMessage(true);
-        setModeLocked(true);
-        // Restore whichever mode was used — fall back to 'economy' if null.
-        if (persistedMode === 'economy' || persistedMode === 'speed') {
-          setInferenceMode(persistedMode);
-        }
+      if (persistedMode === 'economy' || persistedMode === 'speed') {
+        setInferenceMode(persistedMode);
       }
-      // If no messages yet, leave inferenceMode at default 'economy' and
-      // modeLocked at false so the toggle is visible and usable.
+
+      if (msgList.length > 0) {
+        setHasEverSentMessage(true);
+      }
 
       const running = deriveAgentRunning(msgList);
       setAgentRunning(running);
@@ -199,12 +187,9 @@ export default function StudioPage() {
         const updatedPage = payload.new as Page;
         setPage(prev => prev ? { ...prev, ...updatedPage } : prev);
         if (!hasUnsyncedChanges) setEditedCode(updatedPage.html_content);
-
-        // If the backend just persisted inference_mode, sync UI to match.
-        // This closes the gap between "user clicked speed" and "DB confirmed it".
+        // Keep local inference mode in sync with DB (e.g. if changed from another tab)
         if (updatedPage.inference_mode === 'economy' || updatedPage.inference_mode === 'speed') {
           setInferenceMode(updatedPage.inference_mode);
-          setModeLocked(true);
         }
       })
       .subscribe();
@@ -227,6 +212,10 @@ export default function StudioPage() {
             getPageVersions(pageId).then(setVersions);
           }
           if (updatedMsg.meta?.insufficient_tokens) {
+            setAgentRunning(false);
+          }
+          // If a provider error came back, stop the agent spinner
+          if (updatedMsg.meta?.model_provider_error) {
             setAgentRunning(false);
           }
         }
@@ -272,23 +261,21 @@ export default function StudioPage() {
   const handleDragLeave  = () => setIsDragOver(false);
   const handleDrop       = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files.length) stageFiles(e.dataTransfer.files); };
 
+  // ── Inference mode change — always allowed except while agent is running ──
+  const handleInferenceModeChange = useCallback(async (mode: InferenceMode) => {
+    if (isAgentRunning) return;
+    if (mode === inferenceMode) return;
+    setInferenceMode(mode);
+    // Persist to DB immediately so next message uses it
+    // Also clears coding_model_id on the backend via the orchestrator's mode-change logic
+    await updatePage(pageId, { inference_mode: mode } as any);
+    setPage(prev => prev ? { ...prev, inference_mode: mode } : prev);
+  }, [isAgentRunning, inferenceMode, pageId]);
+
   // ── Send message ─────────────────────────────────────────────────────────
   const handleSendMessage = async () => {
     if (!input.trim() || isAgentRunning) return;
     const text = input.trim();
-    const isFirstMessage = !hasEverSentMessage;
-
-    // ── Mode locking ──────────────────────────────────────────────────────
-    // On the first message we lock the mode UI immediately for responsiveness,
-    // but the DB is the true source of truth. The realtime page UPDATE event
-    // (fired when the backend calls update_page_inference_mode) will sync the
-    // UI back if anything differs. This prevents the UI/DB out-of-sync bug.
-    if (isFirstMessage && !modeLocked) {
-      setModeLocked(true);
-      const label = inferenceMode === 'speed' ? '⚡ Speed locked in' : 'Economy locked in';
-      setModeLockLabel(label);
-      setTimeout(() => setModeLockLabel(''), 3000);
-    }
 
     setInput('');
     setAgentRunning(true);
@@ -317,13 +304,9 @@ export default function StudioPage() {
       );
     }
 
-    // Pass inferenceMode only on the first message. The backend ignores it
-    // on subsequent messages once pages.inference_mode is set.
-    const { error } = await sendMessage(
-      pageId,
-      text,
-      isFirstMessage ? inferenceMode : undefined,
-    );
+    // Always pass the current inferenceMode — the orchestrator decides
+    // whether to update the DB based on whether it changed
+    const { error } = await sendMessage(pageId, text, inferenceMode);
     if (error) setAgentRunning(false);
   };
 
@@ -434,18 +417,20 @@ export default function StudioPage() {
         onViewModeChange={setViewMode}
         isAgentRunning={isAgentRunning}
         inferenceMode={inferenceMode}
+        onInferenceModeChange={handleInferenceModeChange}
         hasUnsyncedChanges={hasUnsyncedChanges}
         syncing={syncing}
         syncDone={syncDone}
         onSyncCode={handleSyncCode}
         onDeleteClick={() => setShowDeleteModal(true)}
         onPageUpdate={(updated) => setPage(prev => prev ? { ...prev, ...updated } : prev)}
+        showVersions={showVersions}
+        onToggleVersions={handleToggleVersions}
       />
 
       {/* Main layout */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* Preview / code pane */}
         <PreviewPane
           viewMode={viewMode}
           htmlContent={page?.html_content ?? ''}
@@ -457,10 +442,9 @@ export default function StudioPage() {
           onSyncCode={handleSyncCode}
         />
 
-        {/* Chat pane wrapper — owns the flex sizing */}
+        {/* Chat pane wrapper */}
         <div style={{ flex: '0 0 28%', minWidth: '300px', maxWidth: '480px', position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-          {/* Version history panel — overlays from top of this container */}
           {showVersions && (
             <VersionsPanel
               versions={versions}
@@ -480,15 +464,13 @@ export default function StudioPage() {
             awaitingClarification={awaitingClarification}
             hasEverSentMessage={hasEverSentMessage}
             inferenceMode={inferenceMode}
-            modeLocked={modeLocked}
-            modeLockLabel={modeLockLabel}
             pageSource={page?.page_source}
             input={input}
             onInputChange={setInput}
             onSend={handleSendMessage}
             onAttachClick={() => fileInputRef.current?.click()}
             onRemoveStagedFile={removeStagedFile}
-            onInferenceModeChange={setInferenceMode}
+            onInferenceModeChange={handleInferenceModeChange}
             onDeleteAsset={handleDeleteAsset}
             deletingAssetId={deletingAssetId}
             expandedThinking={expandedThinking}
