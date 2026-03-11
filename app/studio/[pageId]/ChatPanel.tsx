@@ -10,7 +10,6 @@ import loadingAnimationData from '@/public/loader.json';
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 
 type ChatTab = 'chat' | 'files';
-type InferenceMode = 'economy' | 'speed';
 
 const MAX_TEXTAREA_HEIGHT = 168;
 
@@ -60,14 +59,12 @@ interface ChatPanelProps {
   agentSlowWarning: boolean;
   awaitingClarification: boolean;
   hasEverSentMessage: boolean;
-  inferenceMode: InferenceMode;
   pageSource?: string;
   input: string;
   onInputChange: (val: string) => void;
   onSend: () => void;
   onAttachClick: () => void;
   onRemoveStagedFile: (index: number) => void;
-  onInferenceModeChange: (mode: InferenceMode) => void;
   onDeleteAsset: (assetId: string) => void;
   deletingAssetId: string | null;
   expandedThinking: Record<string, boolean>;
@@ -85,14 +82,12 @@ export default function ChatPanel({
   agentSlowWarning,
   awaitingClarification,
   hasEverSentMessage,
-  inferenceMode,
   pageSource,
   input,
   onInputChange,
   onSend,
   onAttachClick,
   onRemoveStagedFile,
-  onInferenceModeChange,
   onDeleteAsset,
   deletingAssetId,
   expandedThinking,
@@ -153,7 +148,6 @@ export default function ChatPanel({
         >
           <span style={{ fontSize: '0.55rem', opacity: 0.5 }}>{isExpanded ? 'v' : '>'}</span>
           thinking
-          {plan._inference_mode === 'speed' && <span style={{ marginLeft: '0.2rem', fontSize: '0.6rem' }}>⚡</span>}
         </button>
         {isExpanded && (
           <div style={{ marginTop: '0.4rem', background: '#fafaf9', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '0.75rem', maxWidth: '300px', width: '100%' }}>
@@ -188,38 +182,6 @@ export default function ChatPanel({
           <div className="chat-msg assistant-msg" style={{ borderLeft: '2px solid #f59e0b' }}>
             <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#f59e0b', textTransform: 'uppercase' }}>needs clarification</p>
             {msg.content}
-          </div>
-        </div>
-      );
-    }
-
-    // ── Provider error message — show switch-mode suggestion ──────────────
-    if (msg.meta?.model_provider_error) {
-      const failedMode = msg.meta.inference_mode as InferenceMode;
-      const switchTo: InferenceMode = failedMode === 'speed' ? 'economy' : 'speed';
-      const switchLabel = switchTo === 'speed' ? '⚡ Speed' : 'Economy';
-      return (
-        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-          <div className="chat-msg assistant-msg" style={{ borderLeft: '2px solid #f59e0b' }}>
-            <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#f59e0b', textTransform: 'uppercase' }}>
-              {failedMode === 'speed' ? '⚡ speed mode unavailable' : 'economy mode unavailable'}
-            </p>
-            <p style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', fontWeight: 300 }}>{msg.content}</p>
-            <button
-              onClick={() => onInferenceModeChange(switchTo)}
-              style={{
-                background: switchTo === 'speed' ? '#111' : '#f0ede8',
-                color: switchTo === 'speed' ? '#f8f7f4' : '#333',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '0.3rem 0.75rem',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
-              }}
-            >
-              Switch to {switchLabel}
-            </button>
           </div>
         </div>
       );
@@ -323,20 +285,6 @@ export default function ChatPanel({
             </span>
           )}
         </button>
-
-        {/* Mode indicator pill — read-only reminder of current mode */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <span style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize: '0.6rem',
-            color: inferenceMode === 'speed' ? '#888' : '#bbb',
-            background: inferenceMode === 'speed' ? '#f0ede8' : 'transparent',
-            borderRadius: '100px',
-            padding: inferenceMode === 'speed' ? '0.1rem 0.45rem' : '0',
-          }}>
-            {inferenceMode === 'speed' ? '⚡ speed' : ''}
-          </span>
-        </div>
       </div>
 
       {/* ── Chat tab ── */}

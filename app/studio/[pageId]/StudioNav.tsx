@@ -7,7 +7,6 @@ import { useState, useEffect, useRef } from 'react';
 import { updatePage, type Page } from '@/lib/api';
 
 type ViewMode = 'preview' | 'mobile' | 'code';
-type InferenceMode = 'economy' | 'speed';
 
 interface StudioNavProps {
   page: Page;
@@ -15,8 +14,6 @@ interface StudioNavProps {
   viewMode: ViewMode;
   onViewModeChange: (m: ViewMode) => void;
   isAgentRunning: boolean;
-  inferenceMode: InferenceMode;
-  onInferenceModeChange: (mode: InferenceMode) => void;
   hasUnsyncedChanges: boolean;
   syncing: boolean;
   syncDone: boolean;
@@ -33,8 +30,6 @@ export default function StudioNav({
   viewMode,
   onViewModeChange,
   isAgentRunning,
-  inferenceMode,
-  onInferenceModeChange,
   hasUnsyncedChanges,
   syncing,
   syncDone,
@@ -196,14 +191,6 @@ export default function StudioNav({
         .profile-toggle-btn:hover { border-color: #bbb; color: #555; background: #faf9f7; }
         .profile-toggle-btn.visible { border-color: #111; color: #111; background: #f5f3ef; }
 
-        /* ── Mode toggle in nav ── */
-        .nav-mode-toggle { display: flex; background: #f0ede8; border: 1px solid #e8e6e1; border-radius: 100px; padding: 2px; gap: 2px; }
-        .nav-mode-btn { border: none; background: transparent; border-radius: 100px; padding: 0.2rem 0.55rem; font-size: 0.68rem; font-family: 'DM Mono', monospace; cursor: pointer; transition: background 0.15s, color 0.15s; color: #aaa; display: flex; align-items: center; gap: 0.2rem; white-space: nowrap; }
-        .nav-mode-btn:hover:not(:disabled) { color: #555; }
-        .nav-mode-btn.active.economy { background: #fff; color: #111; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-        .nav-mode-btn.active.speed { background: #111; color: #f8f7f4; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
-        .nav-mode-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
         .versions-btn { background: transparent; border: 1px solid #e8e6e1; border-radius: 3px; padding: 0.28rem 0.45rem; cursor: pointer; color: #aaa; display: flex; align-items: center; justify-content: center; transition: all 0.13s; flex-shrink: 0; }
         .versions-btn:hover { border-color: #bbb; color: #555; background: #faf9f7; }
         .versions-btn.active { border-color: #bbb; color: #555; background: #f5f3ef; }
@@ -222,7 +209,6 @@ export default function StudioNav({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '100px', padding: '0.2rem 0.6rem', flexShrink: 0 }}>
             <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1s infinite' }} />
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#888' }}>generating</span>
-            {inferenceMode === 'speed' && <span style={{ fontSize: '0.65rem' }}>⚡</span>}
           </div>
         )}
         {isSuspended && (
@@ -299,29 +285,6 @@ export default function StudioNav({
             {(page.show_on_profile ?? true) ? 'on profile' : 'hidden'}
           </span>
         </button>
-
-        {/* ── Inference mode toggle — always visible, always switchable ── */}
-        <div
-          className="nav-mode-toggle"
-          title={isAgentRunning ? 'Cannot switch mode while generating' : 'Switch inference mode'}
-        >
-          <button
-            className={`nav-mode-btn${inferenceMode === 'economy' ? ' active economy' : ''}`}
-            onClick={() => !isAgentRunning && onInferenceModeChange('economy')}
-            disabled={isAgentRunning}
-            title="Economy: Together AI — lower cost"
-          >
-            Eco
-          </button>
-          <button
-            className={`nav-mode-btn${inferenceMode === 'speed' ? ' active speed' : ''}`}
-            onClick={() => !isAgentRunning && onInferenceModeChange('speed')}
-            disabled={isAgentRunning}
-            title="Speed: Cerebras — ~1000 tokens/sec"
-          >
-            ⚡
-          </button>
-        </div>
 
         {/* Version history */}
         <button

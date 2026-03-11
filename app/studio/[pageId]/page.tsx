@@ -27,8 +27,7 @@ import ChatPanel     from './ChatPanel';
 import VersionsPanel from './VersionsPanel';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-type ViewMode      = 'preview' | 'mobile' | 'code';
-type InferenceMode = 'economy' | 'speed';
+type ViewMode = 'preview' | 'mobile' | 'code';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const AGENT_SLOW_MS = 90_000;
@@ -88,9 +87,6 @@ export default function StudioPage() {
   const [awaitingClarification, setAwaitingClarification]   = useState(false);
   const [hasEverSentMessage, setHasEverSentMessage]         = useState(false);
   const [expandedThinking, setExpandedThinking]             = useState<Record<string, boolean>>({});
-
-  // Inference mode — mutable at any time, no locking
-  const [inferenceMode, setInferenceMode] = useState<InferenceMode>('economy');
 
   // View + code editor
   const [viewMode, setViewMode]     = useState<ViewMode>('preview');
@@ -152,12 +148,6 @@ export default function StudioPage() {
       setAssets(assetList);
       setVersions(versionList);
 
-      // Restore inference mode from DB
-      const persistedMode = pageData.inference_mode;
-      if (persistedMode === 'economy' || persistedMode === 'speed') {
-        setInferenceMode(persistedMode);
-      }
-
       if (msgList.length > 0) {
         setHasEverSentMessage(true);
       }
@@ -187,10 +177,6 @@ export default function StudioPage() {
         const updatedPage = payload.new as Page;
         setPage(prev => prev ? { ...prev, ...updatedPage } : prev);
         if (!hasUnsyncedChanges) setEditedCode(updatedPage.html_content);
-        // Keep local inference mode in sync with DB (e.g. if changed from another tab)
-        if (updatedPage.inference_mode === 'economy' || updatedPage.inference_mode === 'speed') {
-          setInferenceMode(updatedPage.inference_mode);
-        }
       })
       .subscribe();
 
@@ -212,10 +198,6 @@ export default function StudioPage() {
             getPageVersions(pageId).then(setVersions);
           }
           if (updatedMsg.meta?.insufficient_tokens) {
-            setAgentRunning(false);
-          }
-          // If a provider error came back, stop the agent spinner
-          if (updatedMsg.meta?.model_provider_error) {
             setAgentRunning(false);
           }
         }
@@ -261,17 +243,6 @@ export default function StudioPage() {
   const handleDragLeave  = () => setIsDragOver(false);
   const handleDrop       = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files.length) stageFiles(e.dataTransfer.files); };
 
-  // ── Inference mode change — always allowed except while agent is running ──
-  const handleInferenceModeChange = useCallback(async (mode: InferenceMode) => {
-    if (isAgentRunning) return;
-    if (mode === inferenceMode) return;
-    setInferenceMode(mode);
-    // Persist to DB immediately so next message uses it
-    // Also clears coding_model_id on the backend via the orchestrator's mode-change logic
-    await updatePage(pageId, { inference_mode: mode } as any);
-    setPage(prev => prev ? { ...prev, inference_mode: mode } : prev);
-  }, [isAgentRunning, inferenceMode, pageId]);
-
   // ── Send message ─────────────────────────────────────────────────────────
   const handleSendMessage = async () => {
     if (!input.trim() || isAgentRunning) return;
@@ -304,9 +275,7 @@ export default function StudioPage() {
       );
     }
 
-    // Always pass the current inferenceMode — the orchestrator decides
-    // whether to update the DB based on whether it changed
-    const { error } = await sendMessage(pageId, text, inferenceMode);
+    const { error } = await sendMessage(pageId, text);
     if (error) setAgentRunning(false);
   };
 
@@ -416,8 +385,6 @@ export default function StudioPage() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         isAgentRunning={isAgentRunning}
-        inferenceMode={inferenceMode}
-        onInferenceModeChange={handleInferenceModeChange}
         hasUnsyncedChanges={hasUnsyncedChanges}
         syncing={syncing}
         syncDone={syncDone}
@@ -463,14 +430,12 @@ export default function StudioPage() {
             agentSlowWarning={agentSlowWarning}
             awaitingClarification={awaitingClarification}
             hasEverSentMessage={hasEverSentMessage}
-            inferenceMode={inferenceMode}
             pageSource={page?.page_source}
             input={input}
             onInputChange={setInput}
             onSend={handleSendMessage}
             onAttachClick={() => fileInputRef.current?.click()}
             onRemoveStagedFile={removeStagedFile}
-            onInferenceModeChange={handleInferenceModeChange}
             onDeleteAsset={handleDeleteAsset}
             deletingAssetId={deletingAssetId}
             expandedThinking={expandedThinking}

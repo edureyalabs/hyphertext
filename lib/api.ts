@@ -20,8 +20,8 @@ export interface Page {
   page_source: 'agent' | 'import';
   html_summary: string;
   component_map: any[];
+  // inference_mode kept in type for DB compat but not used in UI
   inference_mode: 'economy' | 'speed' | null;
-  // Profile feed fields (added via migration)
   caption: string | null;
   show_on_profile: boolean;
   created_at: string;
@@ -96,7 +96,6 @@ export interface Subscription {
   price_usd: number;
 }
 
-// Fields that can be updated on a page
 export interface PageUpdates {
   title?: string;
   html_content?: string;
@@ -104,7 +103,6 @@ export interface PageUpdates {
   html_summary?: string;
   caption?: string | null;
   show_on_profile?: boolean;
-  inference_mode?: 'economy' | 'speed' | null;
 }
 
 export async function getSession(): Promise<Session | null> {
@@ -193,17 +191,11 @@ export async function getMessages(pageId: string): Promise<ChatMessage[]> {
 export async function sendMessage(
   pageId: string,
   content: string,
-  inferenceMode?: 'economy' | 'speed',
 ): Promise<{ error: string | null }> {
-  const body: Record<string, string> = { content };
-  // inference_mode is only meaningful on the first message — the backend
-  // ignores it once pages.inference_mode is already persisted.
-  if (inferenceMode) body.inference_mode = inferenceMode;
-
   const res = await fetch(`/api/pages/${pageId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ content }),
   });
   if (!res.ok) {
     const data = await res.json();
