@@ -148,8 +148,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         zIndex: 50,
       }}>
         <Link href="/dashboard/projects" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', textDecoration: 'none' }}>
-          <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: '50%' }} />
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: '#111', letterSpacing: '0.01em' }}>hyphertext</span>
+          <Image src="/logo.png" alt="Hyphertext" width={42} height={42} style={{ borderRadius: '50%' }} />
+<span style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.2rem', color: '#111', letterSpacing: '0.01em' }}>hyphertext</span>
         </Link>
 
         <nav style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
@@ -175,6 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
+
 
           {accountOpen && (
             <div className="dropdown">

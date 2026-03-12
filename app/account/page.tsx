@@ -121,8 +121,8 @@ function AccountContent() {
 
       <header style={{ height: '52px', background: '#fff', borderBottom: '1px solid #e8e6e1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1.5rem', flexShrink: 0, position: 'sticky', top: 0, zIndex: 50 }}>
         <Link href="/dashboard/projects" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', textDecoration: 'none' }}>
-          <Image src="/logo.png" alt="Hyphertext" width={26} height={26} style={{ borderRadius: '50%' }} />
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: '#111', letterSpacing: '0.01em' }}>hyphertext</span>
+          <Image src="/logo.png" alt="Hyphertext" width={32} height={32} style={{ borderRadius: '50%' }} />
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.2rem', color: '#111', letterSpacing: '0.01em' }}>hyphertext</span>
         </Link>
         <Link href="/dashboard/projects" className="back-btn">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -134,7 +134,7 @@ function AccountContent() {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', height: 'calc(100vh - 52px)' }}>
         <aside style={{ width: '220px', flexShrink: 0, background: '#fff', borderRight: '1px solid #e8e6e1', display: 'flex', flexDirection: 'column', padding: '1.75rem 0.75rem', gap: '0.1rem' }}>
-          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#ccc', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.85rem 0.35rem' }}>settings</p>
+          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.2rem', color: '#000000', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.85rem 0.35rem' }}>settings</p>
 
           {tabs.map(tab => (
             <button

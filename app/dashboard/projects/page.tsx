@@ -242,14 +242,13 @@ export default function ProjectsPage() {
       {/* ── Left panel ── */}
       <aside className="left-panel">
         <div className="panel-header">
-          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 0.2rem' }}>pages</p>
-          <h2 style={{ fontSize: '1rem', fontWeight: 400, letterSpacing: '-0.02em', margin: 0, color: '#111' }}>Your pages</h2>
           <button className="new-page-btn" onClick={() => setShowModal(true)}>
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
               <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
             </svg>
             New page
           </button>
+          <h2 style={{ fontSize: '1rem', fontWeight: 400, letterSpacing: '-0.02em', margin: '0.85rem 0 0', color: '#111' }}>Your pages</h2>
         </div>
 
         <div className="project-list" ref={listRef}>

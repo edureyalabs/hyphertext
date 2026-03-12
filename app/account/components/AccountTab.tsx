@@ -154,13 +154,13 @@ export default function AccountTab({ user }: AccountTabProps) {
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>account</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#000000', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>account</p>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 300, letterSpacing: '-0.025em', margin: 0, color: '#111' }}>Account settings</h1>
       </div>
 
       {/* Avatar */}
       <section style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.5rem', marginBottom: '1rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1rem' }}>profile photo</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#000000', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1rem' }}>profile photo</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <div style={{ width: '64px', height: '64px', borderRadius: '50%', overflow: 'hidden', border: '1px solid #e8e6e1', flexShrink: 0, background: '#f5f3ef', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
             {avatarUrl
@@ -196,7 +196,7 @@ export default function AccountTab({ user }: AccountTabProps) {
 
       {/* Profile info */}
       <section style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.5rem', marginBottom: '1rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1.25rem' }}>profile</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#4f4f4f', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1.25rem' }}>profile</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
           {/* Email */}

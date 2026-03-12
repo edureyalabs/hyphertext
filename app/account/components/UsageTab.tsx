@@ -129,7 +129,7 @@ export default function UsageTab({ userId }: UsageTabProps) {
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>usage</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#000000', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>usage</p>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 300, letterSpacing: '-0.025em', margin: 0, color: '#111' }}>Usage & credits</h1>
       </div>
 

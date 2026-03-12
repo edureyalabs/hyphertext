@@ -168,7 +168,7 @@ export default function PurchaseTab({ userId }: PurchaseTabProps) {
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>credits</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#000000', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>credits</p>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 300, letterSpacing: '-0.025em', margin: 0, color: '#111' }}>Purchase credits</h1>
       </div>
 
