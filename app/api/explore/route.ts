@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+const PAGE_SIZE = 20;
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient(
@@ -11,7 +13,9 @@ export async function GET(request: NextRequest) {
     );
 
     const { searchParams } = new URL(request.url);
-    const q = searchParams.get('q')?.trim() ?? '';
+    const q      = searchParams.get('q')?.trim() ?? '';
+    const limit  = Math.min(parseInt(searchParams.get('limit') ?? String(PAGE_SIZE)), 50);
+    const offset = Math.max(parseInt(searchParams.get('offset') ?? '0'), 0);
 
     if (q.length > 0) {
       // Search profiles by username or display_name
@@ -34,24 +38,27 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         profiles: profiles ?? [],
-        pages: pages ?? [],
-        query: q,
+        pages:    pages ?? [],
+        hasMore:  false, // search results are not paginated
+        query:    q,
       });
     }
 
-    // No query — return recent published pages with owner info
-    const { data: pages } = await supabase
+    // No query — return paginated recent published pages
+    const { data: pages, count } = await supabase
       .from('pages')
-      .select('id, title, html_content, updated_at, owner_id, profiles!pages_owner_id_fkey(username, display_name, avatar_url)')
+      .select('id, title, html_content, updated_at, owner_id, profiles!pages_owner_id_fkey(username, display_name, avatar_url)', { count: 'exact' })
       .eq('is_published', true)
       .eq('hosting_status', 'active')
       .order('updated_at', { ascending: false })
-      .limit(30);
+      .range(offset, offset + limit - 1);
 
     return NextResponse.json({
       profiles: [],
-      pages: pages ?? [],
-      query: '',
+      pages:    pages ?? [],
+      hasMore:  (count ?? 0) > offset + limit,
+      total:    count ?? 0,
+      query:    '',
     });
   } catch (err: any) {
     console.error('[explore] error:', err);
