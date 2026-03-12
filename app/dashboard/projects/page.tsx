@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createPage, type Page } from '@/lib/api';
+import { createPage, getPage, type Page } from '@/lib/api';
 import { INITIAL_BOILERPLATE } from '@/lib/boilerplate';
 
 type CreateMode = 'agent' | 'import';
@@ -22,6 +22,8 @@ export default function ProjectsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore]         = useState(false);
   const [selectedId, setSelectedId]   = useState<string | null>(null);
+  const [selectedPage, setSelectedPage] = useState<Page | null>(null);
+  const [loadingPage, setLoadingPage] = useState(false);
   const [showModal, setShowModal]     = useState(false);
   const [createMode, setCreateMode]   = useState<CreateMode>('agent');
   const [newTitle, setNewTitle]       = useState('');
@@ -34,8 +36,7 @@ export default function ProjectsPage() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const offsetRef   = useRef(0);
 
-  const selectedPage = pages.find(p => p.id === selectedId) ?? null;
-  const publishUrl   = selectedPage
+  const publishUrl = selectedPage
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/p/${selectedPage.id}`
     : '';
 
@@ -49,6 +50,16 @@ export default function ProjectsPage() {
       setLoading(false);
     });
   }, []);
+
+  // Fetch full page content when selection changes
+  useEffect(() => {
+    if (!selectedId) { setSelectedPage(null); return; }
+    setLoadingPage(true);
+    getPage(selectedId).then(page => {
+      setSelectedPage(page);
+      setLoadingPage(false);
+    });
+  }, [selectedId]);
 
   // Infinite scroll
   const loadMore = useCallback(async () => {
@@ -311,7 +322,7 @@ export default function ProjectsPage() {
 
       {/* ── Right panel ── */}
       <div className="right-panel">
-        {selectedPage === null ? (
+        {!selectedId ? (
           <div className="empty-preview">
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ opacity: 0.3 }}>
               <rect x="2" y="5" width="28" height="22" rx="3" stroke="#999" strokeWidth="1.5"/>
@@ -323,6 +334,25 @@ export default function ProjectsPage() {
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#ccc', margin: 0 }}>
               {loading ? 'loading...' : 'select a page to preview'}
             </p>
+          </div>
+        ) : loadingPage ? (
+          /* Skeleton while fetching full page content */
+          <div className="browser-wrap">
+            <div className="browser-chrome">
+              <div className="traffic-lights">
+                <div className="traffic-light" style={{ background: '#ff5f57' }} />
+                <div className="traffic-light" style={{ background: '#febc2e' }} />
+                <div className="traffic-light" style={{ background: '#28c840' }} />
+              </div>
+              <div className="address-bar" style={{ background: '#f0ede8' }} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf9' }}>
+              <div style={{ width: '18px', height: '18px', border: '1.5px solid #ddd', borderTopColor: '#bbb', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+            </div>
+          </div>
+        ) : selectedPage === null ? (
+          <div className="empty-preview">
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#ccc', margin: 0 }}>page not found</p>
           </div>
         ) : (
           <div className="browser-wrap">
@@ -400,6 +430,7 @@ export default function ProjectsPage() {
               </div>
             )}
 
+            {/* iframe: live pages load from URL, all others use srcDoc with full html_content */}
             {isPageLive(selectedPage) ? (
               <iframe
                 key={selectedPage.id}
@@ -418,6 +449,7 @@ export default function ProjectsPage() {
                   title={`Preview: ${selectedPage.title}`}
                   sandbox="allow-scripts allow-same-origin"
                 />
+                {/* Draft badge — shown for unpublished pages */}
                 {!isPageSuspended(selectedPage) && (
                   <div style={{ position: 'absolute', bottom: '1rem', left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,0.92)', border: '1px solid #e8e6e1', borderRadius: '100px', padding: '0.35rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', backdropFilter: 'blur(8px)', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', whiteSpace: 'nowrap' }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ccc', flexShrink: 0 }} />
