@@ -130,6 +130,33 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Collect all storage paths for this page's assets (including child assets
+    // like extracted images from PDFs) BEFORE deleting the page row.
+    // The CASCADE on page_assets.page_id → pages.id will auto-delete the DB
+    // rows, so we must grab the paths first or they're lost forever.
+    const { data: assets } = await supabase
+      .from('page_assets')
+      .select('storage_path')
+      .eq('page_id', pageId);
+
+    const storagePaths = (assets ?? [])
+      .map(a => a.storage_path)
+      .filter(Boolean) as string[];
+
+    // Delete all storage objects in one batched call.
+    // Done before the page delete: a partial storage cleanup is better than
+    // skipping it entirely. If storage errors, we still proceed with DB cleanup.
+    if (storagePaths.length > 0) {
+      const { error: storageError } = await supabase.storage
+        .from('page-assets')
+        .remove(storagePaths);
+
+      if (storageError) {
+        console.error('[page delete] storage cleanup error:', storageError.message);
+      }
+    }
+
+    // Delete the page row. Postgres CASCADE removes all page_assets rows.
     const { error } = await supabase
       .from('pages')
       .delete()

@@ -486,7 +486,7 @@ export default function UserProfilePage() {
           ) : (
             <>
               {/* Iframe in browser chrome — fixed portion */}
-              <div className="browser-wrap" style={{ height: '520px', flexShrink: 0 }}>
+              <div className="browser-wrap" style={{ height: '620px', flexShrink: 0 }}>
                 {/* Browser chrome */}
                 <div style={{ height: '40px', minHeight: '40px', background: '#f5f3ef', borderBottom: '1px solid #e8e6e1', display: 'flex', alignItems: 'center', padding: '0 0.85rem', gap: '0.65rem', flexShrink: 0 }}>
                   <div style={{ display: 'flex', gap: '5px', flexShrink: 0 }}>
