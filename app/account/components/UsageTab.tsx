@@ -1,6 +1,6 @@
 // app/account/components/UsageTab.tsx
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface UsageTabProps {
@@ -32,17 +32,25 @@ interface Transaction {
   output_tokens: number | null;
 }
 
+const PAGE_SIZE = 20;
+
 export default function UsageTab({ userId }: UsageTabProps) {
   const [wallet, setWallet]             = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [loadingMore, setLoadingMore]   = useState(false);
+  const [hasMore, setHasMore]           = useState(true);
+  const [walletId, setWalletId]         = useState<string | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!userId) return;
-    loadData();
+    loadInitial();
   }, [userId]);
 
-  const loadData = async () => {
+  const loadInitial = async () => {
     setLoading(true);
     try {
       const { data: w } = await supabase
@@ -62,26 +70,69 @@ export default function UsageTab({ userId }: UsageTabProps) {
           lifetime_dollars_purchased: Number(row.lifetime_dollars_purchased ?? 0),
           lifetime_dollars_used:      Number(row.lifetime_dollars_used      ?? 0),
         });
+        setWalletId(row.id);
 
         const { data: txns } = await supabase
           .from('token_transactions')
           .select('*')
           .eq('wallet_id', row.id)
           .order('created_at', { ascending: false })
-          .limit(30);
+          .range(0, PAGE_SIZE - 1);
 
-        setTransactions(
-          (txns ?? []).map((t: any) => ({
-            ...t,
-            dollar_amount:        t.dollar_amount        != null ? Number(t.dollar_amount)        : null,
-            dollar_balance_after: t.dollar_balance_after != null ? Number(t.dollar_balance_after) : null,
-          }))
-        );
+        const mapped = (txns ?? []).map((t: any) => ({
+          ...t,
+          dollar_amount:        t.dollar_amount        != null ? Number(t.dollar_amount)        : null,
+          dollar_balance_after: t.dollar_balance_after != null ? Number(t.dollar_balance_after) : null,
+        }));
+        setTransactions(mapped);
+        setHasMore(mapped.length === PAGE_SIZE);
       }
     } finally {
       setLoading(false);
     }
   };
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || !walletId) return;
+    setLoadingMore(true);
+    try {
+      const { data: txns } = await supabase
+        .from('token_transactions')
+        .select('*')
+        .eq('wallet_id', walletId)
+        .order('created_at', { ascending: false })
+        .range(transactions.length, transactions.length + PAGE_SIZE - 1);
+
+      const mapped = (txns ?? []).map((t: any) => ({
+        ...t,
+        dollar_amount:        t.dollar_amount        != null ? Number(t.dollar_amount)        : null,
+        dollar_balance_after: t.dollar_balance_after != null ? Number(t.dollar_balance_after) : null,
+      }));
+      setTransactions(prev => [...prev, ...mapped]);
+      setHasMore(mapped.length === PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, walletId, transactions.length]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMore();
+        }
+      },
+      {
+        root: scrollRef.current,
+        threshold: 0.1,
+      }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loadMore]);
 
   const fmtTokens = (n: number) => {
     if (n >= 1_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, '') + 'M';
@@ -128,18 +179,21 @@ export default function UsageTab({ userId }: UsageTabProps) {
 
   return (
     <div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
       <div style={{ marginBottom: '2rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#000000', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem' }}>usage</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#111', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '0.3rem', fontWeight: 500 }}>usage</p>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 300, letterSpacing: '-0.025em', margin: 0, color: '#111' }}>Usage & credits</h1>
       </div>
 
       {!wallet ? (
         <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '3rem', textAlign: 'center' }}>
-          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#ccc' }}>no wallet found</p>
-          <p style={{ fontSize: '0.82rem', color: '#bbb', fontWeight: 300, marginTop: '0.4rem' }}>Purchase credits to get started.</p>
+          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#999', margin: 0 }}>no wallet found</p>
+          <p style={{ fontSize: '0.82rem', color: '#aaa', fontWeight: 300, marginTop: '0.4rem', marginBottom: 0 }}>Purchase credits to get started.</p>
         </div>
       ) : (
         <>
+          {/* Stat cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
             {[
               {
@@ -162,22 +216,23 @@ export default function UsageTab({ userId }: UsageTabProps) {
               },
             ].map(stat => (
               <div key={stat.label} style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.1rem 1.25rem' }}>
-                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ccc', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 0.5rem' }}>{stat.label}</p>
-                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.15rem', fontWeight: 300, color: stat.accent, margin: '0 0 0.15rem', letterSpacing: '-0.01em' }}>
+                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#888', letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: 0, marginBottom: '0.5rem', marginLeft: 0, marginRight: 0 }}>{stat.label}</p>
+                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.15rem', fontWeight: 300, color: stat.accent, marginTop: 0, marginBottom: '0.15rem', marginLeft: 0, marginRight: 0, letterSpacing: '-0.01em' }}>
                   {stat.primary}
                 </p>
-                <p style={{ fontSize: '0.65rem', color: '#ccc', margin: 0, fontWeight: 300, fontFamily: "'DM Mono', monospace" }}>
+                <p style={{ fontSize: '0.68rem', color: '#999', margin: 0, fontWeight: 300, fontFamily: "'DM Mono', monospace" }}>
                   {stat.secondary}
                 </p>
               </div>
             ))}
           </div>
 
+          {/* Utilisation bar */}
           {wallet.lifetime_dollars_purchased > 0 && (
             <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
-                <span style={{ fontSize: '0.78rem', color: '#555', fontWeight: 400 }}>Lifetime credit utilisation</span>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', color: '#888' }}>
+                <span style={{ fontSize: '0.8rem', color: '#444', fontWeight: 400 }}>Lifetime credit utilisation</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', color: '#666' }}>
                   {fmtDollars(wallet.lifetime_dollars_used)} / {fmtDollars(wallet.lifetime_dollars_purchased)} &nbsp;
                   ({Math.round(dollarUsedRatio * 100)}%)
                 </span>
@@ -188,18 +243,27 @@ export default function UsageTab({ userId }: UsageTabProps) {
             </div>
           )}
 
+          {/* Transactions — fixed-height scrollable container */}
           <div style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', overflow: 'hidden' }}>
             <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0 }}>recent transactions</p>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#ddd' }}>last 30</span>
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#555', letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0, fontWeight: 500 }}>recent transactions</p>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#999' }}>{transactions.length} loaded</span>
             </div>
 
             {transactions.length === 0 ? (
               <div style={{ padding: '3rem', textAlign: 'center' }}>
-                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#ccc', margin: 0 }}>no transactions yet</p>
+                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#aaa', margin: 0 }}>no transactions yet</p>
               </div>
             ) : (
-              <div>
+              /* Fixed-height scrollable list with infinite scroll */
+              <div
+                ref={scrollRef}
+                style={{
+                  height: 'min(420px, 55vh)',
+                  overflowY: 'auto',
+                  overscrollBehavior: 'contain',
+                }}
+              >
                 {transactions.map((txn, idx) => {
                   const hasDollar = txn.dollar_amount != null && txn.dollar_amount !== 0;
                   const dollarSign = txn.transaction_type === 'credit' ? '+' : '-';
@@ -230,20 +294,20 @@ export default function UsageTab({ userId }: UsageTabProps) {
                           </svg>
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ margin: '0 0 0.1rem', fontSize: '0.8rem', color: '#333', fontWeight: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <p style={{ marginTop: 0, marginBottom: '0.1rem', marginLeft: 0, marginRight: 0, fontSize: '0.8rem', color: '#333', fontWeight: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {txn.description}
                           </p>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb' }}>
+                            <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#999' }}>
                               {fmtDate(txn.created_at)}
                             </p>
                             {shortModel(txn.model_id) && (
-                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ccc', background: '#f5f3ef', borderRadius: '3px', padding: '0.05rem 0.35rem' }}>
+                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#888', background: '#f5f3ef', borderRadius: '3px', padding: '0.05rem 0.35rem' }}>
                                 {shortModel(txn.model_id)}
                               </span>
                             )}
                             {txn.transaction_type === 'debit' && (txn.input_tokens || txn.output_tokens) ? (
-                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ddd' }}>
+                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#aaa' }}>
                                 {fmtTokens((txn.input_tokens ?? 0) + (txn.output_tokens ?? 0))} tokens
                               </span>
                             ) : null}
@@ -255,13 +319,14 @@ export default function UsageTab({ userId }: UsageTabProps) {
                         {hasDollar ? (
                           <>
                             <p style={{
-                              margin: '0 0 0.1rem', fontFamily: "'DM Mono', monospace", fontSize: '0.85rem', fontWeight: 500,
+                              marginTop: 0, marginBottom: '0.1rem', marginLeft: 0, marginRight: 0,
+                              fontFamily: "'DM Mono', monospace", fontSize: '0.85rem', fontWeight: 500,
                               color: txn.transaction_type === 'credit' ? '#2a9d5c' : '#e05252',
                             }}>
                               {dollarSign}{fmtDollars(Math.abs(txn.dollar_amount!), 4).replace('$', '')}
                             </p>
                             {txn.dollar_balance_after != null && (
-                              <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#ccc' }}>
+                              <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#999' }}>
                                 bal. {fmtDollars(txn.dollar_balance_after, 2)}
                               </p>
                             )}
@@ -269,12 +334,13 @@ export default function UsageTab({ userId }: UsageTabProps) {
                         ) : (
                           <>
                             <p style={{
-                              margin: '0 0 0.1rem', fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', fontWeight: 400,
+                              marginTop: 0, marginBottom: '0.1rem', marginLeft: 0, marginRight: 0,
+                              fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', fontWeight: 400,
                               color: txn.transaction_type === 'credit' ? '#2a9d5c' : '#e05252',
                             }}>
                               {txn.transaction_type === 'credit' ? '+' : '-'}{fmtTokens(Math.abs(tokenAmt))}
                             </p>
-                            <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#ccc' }}>
+                            <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#999' }}>
                               tokens
                             </p>
                           </>
@@ -283,6 +349,25 @@ export default function UsageTab({ userId }: UsageTabProps) {
                     </div>
                   );
                 })}
+
+                {/* Sentinel element for intersection observer */}
+                <div ref={sentinelRef} style={{ height: '1px' }} />
+
+                {/* Loading more indicator */}
+                {loadingMore && (
+                  <div style={{ padding: '1rem', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ width: '16px', height: '16px', border: '1.5px solid #ddd', borderTopColor: '#111', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  </div>
+                )}
+
+                {/* End of list indicator */}
+                {!hasMore && transactions.length > 0 && (
+                  <div style={{ padding: '1rem', textAlign: 'center' }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#ccc' }}>
+                      all {transactions.length} transactions loaded
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

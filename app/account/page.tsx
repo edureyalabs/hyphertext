@@ -90,6 +90,10 @@ function AccountContent() {
     },
   ];
 
+  // Tabs that use the full available width (no maxWidth cap)
+  const fullWidthTabs: Tab[] = ['hosting', 'purchase'];
+  const isFullWidth = fullWidthTabs.includes(activeTab);
+
   return (
     <div style={{ minHeight: '100vh', background: '#f8f7f4', fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", display: 'flex', flexDirection: 'column' }}>
       <style>{`
@@ -133,6 +137,8 @@ function AccountContent() {
       </header>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', height: 'calc(100vh - 52px)' }}>
+
+        {/* Sidebar */}
         <aside style={{ width: '220px', flexShrink: 0, background: '#fff', borderRight: '1px solid #e8e6e1', display: 'flex', flexDirection: 'column', padding: '1.75rem 0.75rem', gap: '0.1rem' }}>
           <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.2rem', color: '#000000', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.85rem 0.35rem' }}>settings</p>
 
@@ -148,21 +154,23 @@ function AccountContent() {
           ))}
 
           <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '1px solid #f0ede8' }}>
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ccc', margin: '0 0 0.25rem 0.35rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>signed in as</p>
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#000000', margin: '0 0 0.25rem 0.35rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}>signed in as</p>
             <p style={{ fontSize: '0.75rem', color: '#888', margin: '0 0 0 0.35rem', fontWeight: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {user?.email}
             </p>
           </div>
         </aside>
 
+        {/* Main content */}
         <main style={{ flex: 1, overflow: 'auto', padding: '2.5rem' }}>
-          <div style={{ maxWidth: '640px', animation: 'fadeIn 0.3s ease both' }}>
+          <div style={{ animation: 'fadeIn 0.3s ease both', maxWidth: isFullWidth ? 'none' : '640px' }}>
             {activeTab === 'account'  && <AccountTab user={user} />}
             {activeTab === 'hosting'  && <HostingTab userId={user?.id ?? ''} />}
             {activeTab === 'purchase' && <PurchaseTab userId={user?.id ?? ''} />}
             {activeTab === 'usage'    && <UsageTab userId={user?.id ?? ''} />}
           </div>
         </main>
+
       </div>
     </div>
   );

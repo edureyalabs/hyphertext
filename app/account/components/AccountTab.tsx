@@ -181,8 +181,8 @@ export default function AccountTab({ user }: AccountTabProps) {
             >
               {uploading ? 'Uploading…' : 'Change photo'}
             </button>
-            <p style={{ fontSize: '0.75rem', color: '#bbb', margin: '0.4rem 0 0', fontWeight: 300 }}>JPG, PNG, GIF, WEBP · max 5 MB</p>
-            {uploadError && <p style={{ fontSize: '0.75rem', color: '#e05252', margin: '0.3rem 0 0' }}>{uploadError}</p>}
+            <p style={{ fontSize: '0.75rem', color: '#bbb', marginTop: '0.4rem', marginBottom: 0, marginLeft: 0, marginRight: 0, fontWeight: 300 }}>JPG, PNG, GIF, WEBP · max 5 MB</p>
+            {uploadError && <p style={{ fontSize: '0.75rem', color: '#e05252', marginTop: '0.3rem', marginBottom: 0, marginLeft: 0, marginRight: 0 }}>{uploadError}</p>}
           </div>
         </div>
         <input
@@ -196,7 +196,7 @@ export default function AccountTab({ user }: AccountTabProps) {
 
       {/* Profile info */}
       <section style={{ background: '#fff', border: '1px solid #e8e6e1', borderRadius: '10px', padding: '1.5rem', marginBottom: '1rem' }}>
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#4f4f4f', letterSpacing: '0.07em', textTransform: 'uppercase', margin: '0 0 1.25rem' }}>profile</p>
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#4f4f4f', letterSpacing: '0.07em', textTransform: 'uppercase', marginTop: 0, marginBottom: '1.25rem', marginLeft: 0, marginRight: 0 }}>profile</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
           {/* Email */}
@@ -263,10 +263,12 @@ export default function AccountTab({ user }: AccountTabProps) {
               }}
               maxLength={20}
             />
-            {hint
-              ? <p style={{ ...hintBase, color: hint.color, marginTop: '0.35rem' }}>{hint.text}</p>
-              : <p style={hintBase}>Letters, numbers, underscores only. 3–20 characters.</p>
-            }
+            {/* FIX: avoid mixing `margin` shorthand with `marginTop` by using explicit separate margin props */}
+            {hint ? (
+              <p style={{ ...hintBase, color: hint.color, marginTop: '0.35rem' }}>{hint.text}</p>
+            ) : (
+              <p style={{ ...hintBase, marginTop: '0.3rem' }}>Letters, numbers, underscores only. 3–20 characters.</p>
+            )}
             {username && (
               <p style={{ ...hintBase, marginTop: '0.35rem' }}>
                 {'Your public profile: '}
@@ -325,6 +327,10 @@ const inputStyle: React.CSSProperties = {
   transition: 'border-color 0.15s',
 };
 
+// FIX: use explicit separate margin props instead of shorthand `margin`
+// to prevent React rerender conflicts when `marginTop` is conditionally applied.
 const hintBase: React.CSSProperties = {
-  fontSize: '0.72rem', color: '#bbb', margin: '0.3rem 0 0', fontWeight: 300,
+  fontSize: '0.72rem', color: '#bbb',
+  marginTop: '0.3rem', marginBottom: 0, marginLeft: 0, marginRight: 0,
+  fontWeight: 300,
 };
