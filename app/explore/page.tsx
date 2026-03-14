@@ -1,7 +1,6 @@
 // app/explore/page.tsx
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { getSession } from '@/lib/api';
 
@@ -82,8 +81,8 @@ export default function ExplorePage() {
     (page.profiles?.display_name || page.profiles?.username || '?')[0].toUpperCase();
 
   // Initial / search fetch
-  const fetchData = useCallback(async (q: string, reset = true) => {
-    if (reset) setSearching(true);
+  const fetchData = useCallback(async (q: string) => {
+    setSearching(true);
     try {
       const res  = await fetch(`/api/explore?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=0`);
       const data = await res.json();
@@ -123,13 +122,14 @@ export default function ExplorePage() {
     fetchData('');
   }, [fetchData]);
 
-  // Intersection observer for infinite scroll
+  // Intersection observer — scoped to the left scroll panel
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    const root     = listRef.current;
+    if (!sentinel || !root) return;
     const obs = new IntersectionObserver(
       entries => { if (entries[0].isIntersecting) loadMore(); },
-      { root: listRef.current, threshold: 0.1 }
+      { root, threshold: 0.1 }
     );
     obs.observe(sentinel);
     return () => obs.disconnect();
@@ -149,16 +149,27 @@ export default function ExplorePage() {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f8f7f4', fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif", overflow: 'hidden' }}>
+    <div style={{
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      background: '#f8f7f4',
+      fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
+      overflow: 'hidden',
+    }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap');
         * { box-sizing: border-box; }
         ::selection { background: #111; color: #f8f7f4; }
 
         @keyframes spin    { to { transform: rotate(360deg); } }
         @keyframes fadeUp  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes shimmer { 0%,100% { opacity: 0.4; } 50% { opacity: 0.9; } }
+        @keyframes shimmer { 0%,100% { opacity: 0.35; } 50% { opacity: 0.75; } }
+        @keyframes ticker  {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
 
         .site-card {
           padding: 0.75rem 1.1rem;
@@ -197,10 +208,37 @@ export default function ExplorePage() {
         .search-input:focus { border-color: #111; }
         .search-input::placeholder { color: #888; }
 
-        .scroll-panel { flex: 1; overflow-y: auto; }
-        .scroll-panel::-webkit-scrollbar { width: 4px; }
-        .scroll-panel::-webkit-scrollbar-thumb { background: #e8e6e1; border-radius: 2px; }
-        .scroll-panel::-webkit-scrollbar-track { background: transparent; }
+        /* Left panel — fixed width, internal scroll */
+        .left-panel {
+          width: 300px;
+          min-width: 300px;
+          max-width: 300px;
+          flex-shrink: 0;
+          background: #fff;
+          border-right: 1px solid #ece9e4;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .left-scroll {
+          flex: 1;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+        .left-scroll::-webkit-scrollbar { width: 4px; }
+        .left-scroll::-webkit-scrollbar-thumb { background: #e8e6e1; border-radius: 2px; }
+        .left-scroll::-webkit-scrollbar-track { background: transparent; }
+
+        /* Right panel — fills remaining space, no scroll */
+        .right-panel {
+          flex: 1;
+          min-width: 0;
+          background: #e8e5e0;
+          display: flex;
+          overflow: hidden;
+          padding: 1.5rem;
+        }
 
         .browser-wrap {
           display: flex; flex-direction: column;
@@ -210,11 +248,27 @@ export default function ExplorePage() {
           animation: fadeIn 0.3s ease both;
           width: 100%; height: 100%;
         }
+
+        /* Ticker banner */
+        .ticker-track {
+          display: flex;
+          width: max-content;
+          animation: ticker 28s linear infinite;
+          gap: 0;
+        }
+        .ticker-track:hover { animation-play-state: paused; }
+        .ticker-segment {
+          display: flex; align-items: center; gap: 1.5rem;
+          padding: 0 1.5rem; white-space: nowrap;
+        }
+        .ticker-dot {
+          width: 3px; height: 3px; border-radius: 50%; background: #999; flex-shrink: 0;
+        }
       `}</style>
 
-      {/* ── Header ── */}
+      {/* ── Top nav bar ── */}
       <header style={{
-        height: '30px',
+        height: '40px',
         background: '#fff',
         borderBottom: '1px solid #e8e6e1',
         display: 'flex',
@@ -222,8 +276,6 @@ export default function ExplorePage() {
         justifyContent: 'space-between',
         padding: '0 1rem',
         flexShrink: 0,
-        position: 'sticky',
-        top: 0,
         zIndex: 50,
       }}>
         {isLoggedIn ? (
@@ -233,15 +285,15 @@ export default function ExplorePage() {
             border: '1px solid #e8e6e1', background: 'transparent',
             color: '#666', textDecoration: 'none', transition: 'all 0.13s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f5f3ef'; (e.currentTarget as HTMLElement).style.borderColor = '#ccc'; (e.currentTarget as HTMLElement).style.color = '#111'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.borderColor = '#e8e6e1'; (e.currentTarget as HTMLElement).style.color = '#666'; }}
+          onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#f5f3ef'; el.style.borderColor = '#ccc'; el.style.color = '#111'; }}
+          onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'transparent'; el.style.borderColor = '#e8e6e1'; el.style.color = '#666'; }}
           >
             <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
               <path d="M7.5 2L3.5 6l4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </Link>
         ) : (
-          <div style={{ width: '20px' }} />
+          <div style={{ width: '24px' }} />
         )}
 
         {!isLoggedIn && (
@@ -258,64 +310,134 @@ export default function ExplorePage() {
             Create site
           </Link>
         )}
-        {isLoggedIn && <div style={{ width: '20px' }} />}
+        {isLoggedIn && <div style={{ width: '24px' }} />}
       </header>
 
-      {/* ── Search bar ── */}
+      {/* ── Explore header ── */}
       <div style={{
         background: '#fff',
         borderBottom: '1px solid #e8e6e1',
-        padding: '0.75rem 1.5rem',
         flexShrink: 0,
+        overflow: 'hidden',
       }}>
-        <div style={{ maxWidth: '520px', position: 'relative' }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ position: 'absolute', left: '0.7rem', top: '50%', transform: 'translateY(-50%)', color: '#bbb', pointerEvents: 'none' }}>
-            <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.3"/>
-            <path d="M12 12l-2.5-2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-          </svg>
-          <input
-            className="search-input"
-            type="text"
-            placeholder="Search people or sites…"
-            value={query}
-            onChange={e => handleQueryChange(e.target.value)}
-            autoFocus
-          />
-          {searching && (
-            <div style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: '13px', height: '13px', border: '1.5px solid #ddd', borderTopColor: '#111', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          )}
+        {/* Hero row */}
+        <div style={{
+          padding: '1.1rem 1.5rem 0.9rem',
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: '1rem',
+        }}>
+          {/* Left: label + title */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.9rem' }}>
+            <span style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: '0.58rem',
+              color: '#f16363',
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              fontWeight: 500,
+              lineHeight: 1,
+              paddingBottom: '2px',
+            }}>
+              ◈ explore
+            </span>
+            <h1 style={{
+              margin: 0,
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: '1.35rem',
+              fontWeight: 600,
+              color: '#111',
+              letterSpacing: '-0.03em',
+              lineHeight: 1,
+            }}>
+              Published work
+            </h1>
+          </div>
+
+          {/* Right: search */}
+          <div style={{ width: '260px', position: 'relative', flexShrink: 0 }}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: '#bbb', pointerEvents: 'none' }}>
+              <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M12 12l-2.5-2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Search people or sites…"
+              value={query}
+              onChange={e => handleQueryChange(e.target.value)}
+              autoFocus
+              style={{ padding: '0.5rem 0.85rem 0.5rem 2.2rem', fontSize: '0.8rem' }}
+            />
+            {searching && (
+              <div style={{ position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)', width: '12px', height: '12px', border: '1.5px solid #ddd', borderTopColor: '#111', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            )}
+          </div>
+        </div>
+
+        {/* Ticker strip */}
+        <div style={{
+          borderTop: '1px solid #f0ede8',
+          height: '28px',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          background: '#faf9f7',
+        }}>
+          <div className="ticker-track">
+            {/* Two identical sets for seamless loop */}
+            {[0, 1].map(set => (
+              <div key={set} className="ticker-segment">
+                {['sites from the community', 'browse & discover', 'made with the studio', 'tap any site to preview', 'published & shared', 'explore the feed'].map((label, i) => (
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '1.5rem' }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', letterSpacing: '0.05em' }}>
+                      {label}
+                    </span>
+                    <span className="ticker-dot" />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* ── Main split layout ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
 
-        {/* ── LEFT: Site list ── */}
-        <aside style={{
-          width: '280px',
-          flexShrink: 0,
-          background: '#fff',
-          borderRight: '1px solid #ece9e4',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
+        {/* ── LEFT: fixed 300px, internal scroll ── */}
+        <aside className="left-panel">
           {/* Panel header */}
           <div style={{
-            padding: '0.65rem 1.1rem 0.6rem',
+            padding: '0.6rem 1.1rem',
             borderBottom: '1px solid #ece9e4',
             flexShrink: 0,
-            position: 'sticky',
-            top: 0,
             background: '#fff',
             zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}>
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.0rem', color: '#f16363', letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0, fontWeight: 500 }}>
+            <p style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: '0.7rem',
+              color: query.length > 0 ? '#6366f1' : '#f16363',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              margin: 0,
+              fontWeight: 500,
+            }}>
               {query.length > 0 ? 'results' : 'recent sites'}
             </p>
+            {!loading && pages.length > 0 && (
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#ccc', letterSpacing: '0.04em' }}>
+                {pages.length}{hasMore ? '+' : ''}
+              </span>
+            )}
           </div>
 
-          <div ref={listRef} className="scroll-panel">
+          <div ref={listRef} className="left-scroll">
 
             {/* Profile results — only when searching */}
             {query.length > 0 && profiles.length > 0 && (
@@ -355,7 +477,7 @@ export default function ExplorePage() {
             {/* Loading skeletons */}
             {loading ? (
               <div style={{ padding: '0.75rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {[1,2,3,4,5,6].map(i => (
+                {[1,2,3,4,5,6,7,8].map(i => (
                   <div key={i} style={{ height: '44px', background: '#f5f3ef', borderRadius: '5px', animation: `shimmer ${0.8 + i * 0.1}s ease infinite` }} />
                 ))}
               </div>
@@ -375,7 +497,7 @@ export default function ExplorePage() {
                       key={page.id}
                       className={`site-card${isSelected ? ' selected' : ''}`}
                       onClick={() => setSelectedId(page.id)}
-                      style={{ animationDelay: `${idx * 0.03}s` }}
+                      style={{ animationDelay: `${Math.min(idx, 10) * 0.03}s` }}
                     >
                       <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
                         {/* Accent bar */}
@@ -416,8 +538,8 @@ export default function ExplorePage() {
                   );
                 })}
 
-                {/* Infinite scroll sentinel */}
-                <div ref={sentinelRef} style={{ padding: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+                {/* Infinite scroll sentinel — inside the scrollable div */}
+                <div ref={sentinelRef} style={{ padding: '0.75rem', display: 'flex', justifyContent: 'center', minHeight: '40px' }}>
                   {loadingMore && (
                     <div style={{ width: '14px', height: '14px', border: '1.5px solid #e0ddd8', borderTopColor: '#999', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
                   )}
@@ -430,14 +552,8 @@ export default function ExplorePage() {
           </div>
         </aside>
 
-        {/* ── RIGHT: Preview ── */}
-        <div style={{
-          flex: 1,
-          background: '#e8e5e0',
-          display: 'flex',
-          overflow: 'hidden',
-          padding: '1.5rem',
-        }}>
+        {/* ── RIGHT: fills remaining space, no overflow ── */}
+        <div className="right-panel">
           {!selectedPage ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', textAlign: 'center' }}>
               <div style={{ width: '48px', height: '48px', border: '1.5px dashed #d0cdc8', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}>
@@ -480,7 +596,11 @@ export default function ExplorePage() {
                     </svg>
                     Open
                   </a>
-                  <button className="action-btn" onClick={handleCopyUrl} style={{ background: copied ? undefined : undefined, borderColor: copied ? '#2a9d5c' : undefined, color: copied ? '#2a9d5c' : undefined }}>
+                  <button
+                    className="action-btn"
+                    onClick={handleCopyUrl}
+                    style={{ borderColor: copied ? '#2a9d5c' : undefined, color: copied ? '#2a9d5c' : undefined }}
+                  >
                     {copied ? (
                       <>
                         <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 7l4 4 6-6" stroke="#2a9d5c" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -496,11 +616,11 @@ export default function ExplorePage() {
                 </div>
               </div>
 
-              {/* Iframe */}
+              {/* Iframe — fills 100% of remaining browser-wrap height */}
               <iframe
                 key={selectedPage.id}
                 src={publishUrl}
-                style={{ flex: 1, border: 'none', display: 'block', background: '#fff', minHeight: 0, width: '100%', height: '100%' }}
+                style={{ flex: 1, border: 'none', display: 'block', background: '#fff', width: '100%', height: '100%', minHeight: 0 }}
                 title={`Preview: ${selectedPage.title}`}
                 sandbox="allow-scripts allow-same-origin"
               />

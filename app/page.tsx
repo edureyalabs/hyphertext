@@ -378,10 +378,10 @@ export default function Home() {
       </div>
 
       {/* ── HOW IT WORKS ────────────────────────────────────────────── */}
-      <section style={{ borderBottom: "1px solid var(--border)" }} className="scroll-fade">
+      <section style={{ borderBottom: "1px solid var(--border)" }}>
         <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0 2.5rem" }}>
           <div style={{
-            padding: "4.5rem 0 2.5rem",
+            padding: "2.5rem 0 1.5rem",
             display: "flex",
             alignItems: "center",
             gap: "1.5rem"
@@ -427,7 +427,7 @@ export default function Home() {
 
       {/* ── VIBE CODING ─────────────────────────────────────────────── */}
       <section style={{ background: "#111", color: "#f4f2ed", borderBottom: "1px solid #1a1a1a" }} className="scroll-fade">
-        <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "7rem 2.5rem" }}>
+        <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "4rem 2.5rem" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "7rem", alignItems: "center" }}>
             <div>
               <div style={{

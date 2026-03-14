@@ -26,11 +26,12 @@ export async function GET(request: NextRequest) {
         .not('username', 'is', null)
         .limit(10);
 
-      // Search pages by title, joined with owner profile
+      // Search pages by title — only show_on_profile + published + active
       const { data: pages } = await supabase
         .from('pages')
         .select('id, title, html_content, updated_at, owner_id, profiles!pages_owner_id_fkey(username, display_name, avatar_url)')
         .eq('is_published', true)
+        .eq('show_on_profile', true)
         .eq('hosting_status', 'active')
         .ilike('title', `%${q}%`)
         .order('updated_at', { ascending: false })
@@ -39,16 +40,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         profiles: profiles ?? [],
         pages:    pages ?? [],
-        hasMore:  false, // search results are not paginated
+        hasMore:  false,
         query:    q,
       });
     }
 
-    // No query — return paginated recent published pages
+    // No query — return paginated recent published + show_on_profile pages
     const { data: pages, count } = await supabase
       .from('pages')
       .select('id, title, html_content, updated_at, owner_id, profiles!pages_owner_id_fkey(username, display_name, avatar_url)', { count: 'exact' })
       .eq('is_published', true)
+      .eq('show_on_profile', true)
       .eq('hosting_status', 'active')
       .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1);
