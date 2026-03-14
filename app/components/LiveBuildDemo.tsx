@@ -16,7 +16,7 @@ export default function LiveBuildDemo() {
 
   const [order] = useState<number[]>(() => buildOrder());
   const [orderPos, setOrderPos] = useState(0);
-  const seqIdx = order[orderPos];
+  const seqIdx = order[orderPos] % DEMOS.length;
 
   const [phase, setPhase] = useState<"typing" | "thinking" | "live" | "holding">("live");
   const [typedPrompt, setTypedPrompt] = useState(DEMOS[0].prompt);
@@ -46,7 +46,7 @@ export default function LiveBuildDemo() {
       let pos = 0;
       while (mountedRef.current) {
         const nextPos = (pos + 1) % order.length;
-        const nextIdx = order[nextPos];
+        const nextIdx = order[nextPos] % DEMOS.length;
         if (!mountedRef.current) break;
 
         setPageOpacity(0);
@@ -101,6 +101,9 @@ export default function LiveBuildDemo() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const demo = DEMOS[seqIdx];
+
+  // Guard against an out-of-bounds index during any transient state
+  if (!demo) return null;
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
