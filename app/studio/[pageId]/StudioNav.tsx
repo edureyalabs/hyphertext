@@ -8,12 +8,22 @@ import { updatePage, type Page } from '@/lib/api';
 
 type ViewMode = 'preview' | 'mobile' | 'code';
 
+// Map backend status strings to user-facing labels + colors
+const STATUS_CONFIG: Record<string, { label: string; color: string; dotColor: string }> = {
+  planning:          { label: 'planning',        color: '#92400e', dotColor: '#f59e0b' },
+  searching:         { label: 'searching web',   color: '#1e40af', dotColor: '#3b82f6' },
+  'processing files':{ label: 'reading files',   color: '#065f46', dotColor: '#10b981' },
+  writing:           { label: 'writing code',    color: '#4c1d95', dotColor: '#8b5cf6' },
+  editing:           { label: 'editing code',    color: '#4c1d95', dotColor: '#8b5cf6' },
+};
+
 interface StudioNavProps {
   page: Page;
   pageId: string;
   viewMode: ViewMode;
   onViewModeChange: (m: ViewMode) => void;
   isAgentRunning: boolean;
+  agentStatus: string | null;
   hasUnsyncedChanges: boolean;
   syncing: boolean;
   syncDone: boolean;
@@ -30,6 +40,7 @@ export default function StudioNav({
   viewMode,
   onViewModeChange,
   isAgentRunning,
+  agentStatus,
   hasUnsyncedChanges,
   syncing,
   syncDone,
@@ -48,16 +59,22 @@ export default function StudioNav({
     ? `${window.location.origin}/p/${pageId}`
     : `/p/${pageId}`;
 
+  const statusCfg = agentStatus ? STATUS_CONFIG[agentStatus] ?? {
+    label: agentStatus,
+    color: '#555',
+    dotColor: '#f59e0b',
+  } : null;
+
   // ── Publish panel state ───────────────────────────────────────────────────
-  const [publishOpen, setPublishOpen]       = useState(false);
-  const [caption, setCaption]               = useState(page.caption ?? '');
-  const [showOnProfile, setShowOnProfile]   = useState(page.show_on_profile ?? true);
-  const [publishing, setPublishing]         = useState(false);
-  const [unpublishing, setUnpublishing]     = useState(false);
-  const [savingMeta, setSavingMeta]         = useState(false);
-  const [metaSaved, setMetaSaved]           = useState(false);
-  const [publishError, setPublishError]     = useState('');
-  const [urlCopied, setUrlCopied]           = useState(false);
+  const [publishOpen, setPublishOpen]     = useState(false);
+  const [caption, setCaption]             = useState(page.caption ?? '');
+  const [showOnProfile, setShowOnProfile] = useState(page.show_on_profile ?? true);
+  const [publishing, setPublishing]       = useState(false);
+  const [unpublishing, setUnpublishing]   = useState(false);
+  const [savingMeta, setSavingMeta]       = useState(false);
+  const [metaSaved, setMetaSaved]         = useState(false);
+  const [publishError, setPublishError]   = useState('');
+  const [urlCopied, setUrlCopied]         = useState(false);
   const publishPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -194,9 +211,23 @@ export default function StudioNav({
         .versions-btn { background: transparent; border: 1px solid #e8e6e1; border-radius: 3px; padding: 0.28rem 0.45rem; cursor: pointer; color: #aaa; display: flex; align-items: center; justify-content: center; transition: all 0.13s; flex-shrink: 0; }
         .versions-btn:hover { border-color: #bbb; color: #555; background: #faf9f7; }
         .versions-btn.active { border-color: #bbb; color: #555; background: #f5f3ef; }
+
+        .agent-status-pill {
+          display: inline-flex; align-items: center; gap: 0.35rem;
+          border-radius: 100px; padding: 0.22rem 0.65rem;
+          font-family: 'DM Mono', monospace; font-size: 0.65rem;
+          animation: statusFadeIn 0.2s ease both;
+          flex-shrink: 0;
+        }
+        @keyframes statusFadeIn { from { opacity:0; transform: scale(0.95); } to { opacity:1; transform: scale(1); } }
+        .status-dot {
+          width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+          animation: statusPulse 1.2s ease infinite;
+        }
+        @keyframes statusPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
       `}</style>
 
-      {/* ── Left: logo + title + agent status ─────────────────────────────── */}
+      {/* ── Left: logo + title + status ─────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
         <Link href="/dashboard/projects" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', flexShrink: 0 }}>
           <Image src="/logo.png" alt="Hyphertext" width={22} height={22} style={{ borderRadius: '50%' }} />
@@ -205,13 +236,34 @@ export default function StudioNav({
         <span style={{ fontSize: '0.85rem', fontWeight: 400, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
           {page.title}
         </span>
-        {isAgentRunning && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '100px', padding: '0.2rem 0.6rem', flexShrink: 0 }}>
-            <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#f59e0b', animation: 'pulse 1s infinite' }} />
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#888' }}>generating</span>
+
+        {/* Agent status pill — shows current operation, clears when done */}
+        {isAgentRunning && statusCfg && (
+          <div
+            className="agent-status-pill"
+            style={{
+              background: `${statusCfg.dotColor}12`,
+              border: `1px solid ${statusCfg.dotColor}40`,
+              color: statusCfg.color,
+            }}
+          >
+            <div className="status-dot" style={{ background: statusCfg.dotColor }} />
+            {statusCfg.label}
           </div>
         )}
-        {isSuspended && (
+
+        {/* Fallback: generic "generating" when running but no status yet */}
+        {isAgentRunning && !statusCfg && (
+          <div
+            className="agent-status-pill"
+            style={{ background: '#f59e0b12', border: '1px solid #f59e0b40', color: '#92400e' }}
+          >
+            <div className="status-dot" style={{ background: '#f59e0b' }} />
+            generating
+          </div>
+        )}
+
+        {isSuspended && !isAgentRunning && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '100px', padding: '0.2rem 0.6rem', flexShrink: 0 }}>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#92400e' }}>hosting suspended</span>
           </div>
@@ -234,7 +286,6 @@ export default function StudioNav({
       {/* ── Right: actions ────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0, flex: 1, justifyContent: 'flex-end' }}>
 
-        {/* Sync code button (code view only) */}
         {viewMode === 'code' && hasUnsyncedChanges && (
           <button
             className={`snav-sync${syncDone ? ' done' : ''}`}
@@ -245,7 +296,6 @@ export default function StudioNav({
           </button>
         )}
 
-        {/* Live URL actions */}
         {isLive && (
           <div style={{ display: 'flex', gap: '0.3rem' }}>
             <button className={`pub-url-btn${urlCopied ? ' copied' : ''}`} onClick={handleCopyUrl}>
@@ -263,7 +313,6 @@ export default function StudioNav({
           </div>
         )}
 
-        {/* Profile visibility toggle */}
         <button
           className={`profile-toggle-btn${(page.show_on_profile ?? true) ? ' visible' : ''}`}
           onClick={handleToggleProfile}
@@ -286,7 +335,6 @@ export default function StudioNav({
           </span>
         </button>
 
-        {/* Version history */}
         <button
           className={`versions-btn${showVersions ? ' active' : ''}`}
           onClick={onToggleVersions}
@@ -298,7 +346,6 @@ export default function StudioNav({
           </svg>
         </button>
 
-        {/* Delete */}
         <button className="snav-btn" onClick={onDeleteClick}>
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
             <path d="M1 3.5H13M5.5 3.5V2.5C5.5 2 5.5 1.5 6.5 1.5H7.5C8.5 1.5 8.5 2 8.5 2.5V3.5M6 6V10.5M8 6V10.5M2.5 3.5L3 11.5C3 12 3.5 12.5 4 12.5H10C10.5 12.5 11 12 11 11.5L11.5 3.5H2.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>

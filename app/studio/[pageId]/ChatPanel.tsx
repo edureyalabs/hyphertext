@@ -13,6 +13,14 @@ type ChatTab = 'chat' | 'files';
 
 const MAX_TEXTAREA_HEIGHT = 168;
 
+const STATUS_LABELS: Record<string, string> = {
+  planning:           'planning your page',
+  searching:          'searching the web',
+  'processing files': 'reading your files',
+  writing:            'writing code',
+  editing:            'editing code',
+};
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -56,6 +64,7 @@ interface ChatPanelProps {
   pendingUploads: PendingUpload[];
   stagedFiles: File[];
   isAgentRunning: boolean;
+  agentStatus: string | null;
   agentSlowWarning: boolean;
   awaitingClarification: boolean;
   hasEverSentMessage: boolean;
@@ -79,6 +88,7 @@ export default function ChatPanel({
   pendingUploads,
   stagedFiles,
   isAgentRunning,
+  agentStatus,
   agentSlowWarning,
   awaitingClarification,
   hasEverSentMessage,
@@ -101,10 +111,14 @@ export default function ChatPanel({
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
 
   const readyAssets = assets.filter(a => a.processing_status === 'ready');
+  const statusLabel = agentStatus ? (STATUS_LABELS[agentStatus] ?? agentStatus) : null;
+
+  // Filter out thinking messages — we no longer render them in chat
+  const visibleMessages = messages.filter(m => m.message_type !== 'thinking');
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [visibleMessages, isAgentRunning]);
 
   useEffect(() => {
     if (!input && textareaRef.current) {
@@ -137,45 +151,7 @@ export default function ChatPanel({
     }
   };
 
-  const renderThinkingBlock = (msg: ChatMessage) => {
-    const plan = msg.meta?.plan as Record<string, any> ?? {};
-    const isExpanded = expandedThinking[msg.id];
-    return (
-      <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-        <button
-          onClick={() => onToggleThinking(msg.id)}
-          style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.3rem 0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#aaa' }}
-        >
-          <span style={{ fontSize: '0.55rem', opacity: 0.5 }}>{isExpanded ? 'v' : '>'}</span>
-          thinking
-        </button>
-        {isExpanded && (
-          <div style={{ marginTop: '0.4rem', background: '#fafaf9', border: '1px solid #e8e6e1', borderRadius: '6px', padding: '0.75rem', maxWidth: '300px', width: '100%' }}>
-            {plan.description && (
-              <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', color: '#333', fontWeight: 400, lineHeight: 1.5 }}>
-                {plan.description}
-              </p>
-            )}
-            {plan.changes?.length > 0 && (
-              <div>
-                <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#bbb', textTransform: 'uppercase' }}>changes</p>
-                {plan.changes.map((c: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#bbb', flexShrink: 0 }}>{c.order}.</span>
-                    <span style={{ fontSize: '0.72rem', color: '#555', lineHeight: 1.4 }}>{c.what}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const renderMessage = (msg: ChatMessage) => {
-    if (msg.message_type === 'thinking') return renderThinkingBlock(msg);
-
     if (msg.message_type === 'clarification') {
       return (
         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -191,13 +167,13 @@ export default function ChatPanel({
       return (
         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
           <div className="chat-msg assistant-msg" style={{ borderLeft: '2px solid #e05252' }}>
-            <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#e05252', textTransform: 'uppercase' }}>out of tokens</p>
+            <p style={{ margin: '0 0 0.3rem', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#e05252', textTransform: 'uppercase' }}>out of credits</p>
             {msg.content}
             <button
               onClick={() => router.push('/account?tab=purchase')}
               style={{ marginTop: '0.5rem', background: '#111', color: '#f8f7f4', border: 'none', borderRadius: '4px', padding: '0.3rem 0.75rem', fontSize: '0.75rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
             >
-              Purchase tokens
+              Purchase credits
             </button>
           </div>
         </div>
@@ -272,6 +248,11 @@ export default function ChatPanel({
         .chat-input::-webkit-scrollbar-thumb:hover { background: #bbb; }
         .staged-file-chip { display: flex; align-items: center; gap: 0.3rem; background: #f0ede8; border: 1px solid #e0ddd8; border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.72rem; color: #555; max-width: 120px; }
         .staged-file-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes statusSlide { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+        .status-row { animation: statusSlide 0.15s ease both; display: flex; align-items: center; gap: 0.4rem; }
+        .status-dot-pulse { width: 6px; height: 6px; border-radius: 50%; animation: dotPulse 1.4s ease infinite; flex-shrink: 0; }
+        @keyframes dotPulse { 0%,100% { opacity: 0.4; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
       `}</style>
 
       {/* Tab bar */}
@@ -291,35 +272,66 @@ export default function ChatPanel({
       {chatTab === 'chat' && (
         <>
           <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {messages.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.2rem', opacity: 0.5 }}>*</span>
-                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem' }}>
-                  {pageSource === 'import' ? 'page imported — describe what to change' : 'describe your page'}
-                </p>
-                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#ddd', maxWidth: '180px', lineHeight: 1.5 }}>
-                  attach images or docs with the paperclip button
-                </p>
+
+            {/* Empty state */}
+            {visibleMessages.length === 0 && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.75rem' }}>
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ opacity: 0.3 }}>
+                  <rect x="2" y="5" width="28" height="22" rx="3" stroke="#999" strokeWidth="1.5"/>
+                  <path d="M2 11h28" stroke="#999" strokeWidth="1.5"/>
+                  <circle cx="6.5" cy="8" r="1.2" fill="#999"/>
+                  <circle cx="10.5" cy="8" r="1.2" fill="#999"/>
+                  <circle cx="14.5" cy="8" r="1.2" fill="#999"/>
+                  <path d="M8 18h16M8 22h10" stroke="#ccc" strokeWidth="1.2" strokeLinecap="round"/>
+                </svg>
+                <div>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', marginBottom: '0.5rem', color: '#bbb' }}>
+                    {pageSource === 'import' ? 'page imported · describe what to change' : 'describe your page to get started'}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {['attach images, logos or docs', 'ask for any type of page', 'request edits at any time'].map(hint => (
+                      <p key={hint} style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#ddd', margin: 0 }}>· {hint}</p>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
-            {messages.map(msg => renderMessage(msg))}
 
+            {/* Messages — thinking type filtered out above */}
+            {visibleMessages.map(msg => renderMessage(msg))}
+
+            {/* Agent running indicator */}
             {hasEverSentMessage && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem', paddingTop: '0.25rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.35rem', paddingTop: '0.25rem' }}>
+
+                {/* Status label ABOVE the animation */}
+                {isAgentRunning && statusLabel && (
+                  <div className="status-row">
+                    <div className="status-dot-pulse" style={{ background: '#f59e0b' }} />
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#888' }}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                )}
+
+                {/* Lottie / idle image */}
                 {isAgentRunning
                   ? <Lottie animationData={loadingAnimationData} loop={true} style={{ width: '72px', height: '72px' }} />
                   : <Image src="/loader.png" alt="idle" width={24} height={24} style={{ objectFit: 'contain' }} />
                 }
+
+                {/* Slow warning */}
                 {agentSlowWarning && isAgentRunning && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.35rem 0.6rem', maxWidth: '240px' }}>
                     <span style={{ fontSize: '0.65rem' }}>⏳</span>
                     <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#92400e', lineHeight: 1.4 }}>
-                      still working — complex requests take longer
+                      still working — complex pages take longer
                     </span>
                   </div>
                 )}
               </div>
             )}
+
             <div ref={chatBottomRef} />
           </div>
 
@@ -360,20 +372,17 @@ export default function ChatPanel({
               </div>
             )}
 
-            <div style={{
-              background: '#f8f7f4',
-              border: '1px solid #e8e6e1',
-              borderRadius: '8px',
-              padding: '0.65rem 0.75rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.5rem',
-              transition: 'border-color 0.15s',
-            }}>
+            <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', transition: 'border-color 0.15s' }}>
               <textarea
                 ref={textareaRef}
                 className="chat-input"
-                placeholder={isAgentRunning ? 'generating...' : awaitingClarification ? 'type your answer...' : 'describe a change...'}
+                placeholder={
+                  isAgentRunning
+                    ? (statusLabel ?? 'generating...')
+                    : awaitingClarification
+                    ? 'type your answer...'
+                    : 'describe a change or a new page...'
+                }
                 value={input}
                 onChange={handleTextareaChange}
                 onKeyDown={handleKeyDown}
@@ -403,7 +412,10 @@ export default function ChatPanel({
       {chatTab === 'files' && (
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {assets.length === 0 && pendingUploads.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.75rem', padding: '2rem', cursor: 'pointer' }} onClick={onAttachClick}>
+            <div
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.75rem', padding: '2rem', cursor: 'pointer' }}
+              onClick={onAttachClick}
+            >
               <div style={{ width: '40px', height: '40px', border: '1.5px dashed #ddd', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M13.5 7.5L7.5 13.5C6.1 14.9 3.9 14.9 2.5 13.5C1.1 12.1 1.1 9.9 2.5 8.5L9 2C9.9 1.1 11.4 1.1 12.3 2C13.2 2.9 13.2 4.4 12.3 5.3L6.3 11.3C5.9 11.7 5.2 11.7 4.8 11.3C4.4 10.9 4.4 10.2 4.8 9.8L10 4.5" stroke="#ccc" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -411,7 +423,7 @@ export default function ChatPanel({
               </div>
               <div>
                 <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', marginBottom: '0.25rem' }}>no files yet</p>
-                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#ddd', lineHeight: 1.5 }}>click to attach or drag and drop</p>
+                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#ddd', lineHeight: 1.5 }}>click to attach images or documents</p>
               </div>
             </div>
           ) : (

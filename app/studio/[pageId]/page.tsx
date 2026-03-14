@@ -26,10 +26,8 @@ import PreviewPane   from './PreviewPane';
 import ChatPanel     from './ChatPanel';
 import VersionsPanel from './VersionsPanel';
 
-// ── Types ────────────────────────────────────────────────────────────────────
 type ViewMode = 'preview' | 'mobile' | 'code';
 
-// ── Constants ────────────────────────────────────────────────────────────────
 const AGENT_SLOW_MS = 90_000;
 
 const ALLOWED_TYPES = [
@@ -41,7 +39,6 @@ const ALLOWED_TYPES = [
 const MAX_IMAGE_BYTES = 5  * 1024 * 1024;
 const MAX_DOC_BYTES   = 10 * 1024 * 1024;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 function deriveAgentRunning(msgs: ChatMessage[]): boolean {
   return msgs.some(m => m.status === 'pending' || m.status === 'processing');
 }
@@ -58,50 +55,44 @@ const supabaseRealtime = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ── Component ────────────────────────────────────────────────────────────────
 export default function StudioPage() {
   const params = useParams();
   const router = useRouter();
   const pageId = params.pageId as string;
 
-  // Core data
-  const [page, setPage]         = useState<Page | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [assets, setAssets]     = useState<PageAsset[]>([]);
-  const [versions, setVersions] = useState<PageVersion[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [page, setPage]           = useState<Page | null>(null);
+  const [messages, setMessages]   = useState<ChatMessage[]>([]);
+  const [assets, setAssets]       = useState<PageAsset[]>([]);
+  const [versions, setVersions]   = useState<PageVersion[]>([]);
+  const [loading, setLoading]     = useState(true);
 
-  // Upload state
-  const [pendingUploads, setPendingUploads]     = useState<PendingUpload[]>([]);
-  const [stagedFiles, setStagedFiles]           = useState<File[]>([]);
-  const [deletingAssetId, setDeletingAssetId]   = useState<string | null>(null);
+  // Agent status — driven by polling + realtime
+  const [agentStatus, setAgentStatus] = useState<string | null>(null);
 
-  // Version panel
+  const [pendingUploads, setPendingUploads]   = useState<PendingUpload[]>([]);
+  const [stagedFiles, setStagedFiles]         = useState<File[]>([]);
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+
   const [showVersions, setShowVersions] = useState(false);
   const [revertingId, setRevertingId]   = useState<string | null>(null);
 
-  // Chat state
-  const [input, setInput]                                   = useState('');
-  const [isAgentRunning, setIsAgentRunning]                 = useState(false);
-  const [agentSlowWarning, setAgentSlowWarning]             = useState(false);
-  const [awaitingClarification, setAwaitingClarification]   = useState(false);
-  const [hasEverSentMessage, setHasEverSentMessage]         = useState(false);
-  const [expandedThinking, setExpandedThinking]             = useState<Record<string, boolean>>({});
+  const [input, setInput]                                 = useState('');
+  const [isAgentRunning, setIsAgentRunning]               = useState(false);
+  const [agentSlowWarning, setAgentSlowWarning]           = useState(false);
+  const [awaitingClarification, setAwaitingClarification] = useState(false);
+  const [hasEverSentMessage, setHasEverSentMessage]       = useState(false);
+  const [expandedThinking, setExpandedThinking]           = useState<Record<string, boolean>>({});
 
-  // View + code editor
   const [viewMode, setViewMode]     = useState<ViewMode>('preview');
   const [editedCode, setEditedCode] = useState<string | null>(null);
   const [syncing, setSyncing]       = useState(false);
   const [syncDone, setSyncDone]     = useState(false);
 
-  // Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]               = useState(false);
 
-  // Drag-over
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Refs
   const fileInputRef    = useRef<HTMLInputElement>(null);
   const slowTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const agentRunningRef = useRef(false);
@@ -125,7 +116,10 @@ export default function StudioPage() {
   const setAgentRunning = useCallback((running: boolean) => {
     agentRunningRef.current = running;
     setIsAgentRunning(running);
-    if (!running) clearSlowTimer();
+    if (!running) {
+      clearSlowTimer();
+      setAgentStatus(null); // clear status when done
+    }
   }, [clearSlowTimer]);
 
   // ── Initial load ─────────────────────────────────────────────────────────
@@ -139,6 +133,11 @@ export default function StudioPage() {
       setPage(pageData);
       setEditedCode(pageData.html_content);
 
+      // Restore persisted agent status from DB (survives refresh)
+      if ((pageData as any).agent_status) {
+        setAgentStatus((pageData as any).agent_status);
+      }
+
       const [msgList, assetList, versionList] = await Promise.all([
         getMessages(pageId),
         listAssets(pageId),
@@ -148,9 +147,7 @@ export default function StudioPage() {
       setAssets(assetList);
       setVersions(versionList);
 
-      if (msgList.length > 0) {
-        setHasEverSentMessage(true);
-      }
+      if (msgList.length > 0) setHasEverSentMessage(true);
 
       const running = deriveAgentRunning(msgList);
       setAgentRunning(running);
@@ -167,22 +164,48 @@ export default function StudioPage() {
     return () => clearSlowTimer();
   }, [pageId, router, setAgentRunning, startSlowTimer, clearSlowTimer]);
 
+  // ── Poll agent_status while agent is running ──────────────────────────────
+  // Polling is the reliable fallback since realtime column tracking can be flaky.
+  useEffect(() => {
+    if (!isAgentRunning) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const pageData = await getPage(pageId);
+        if (pageData) {
+          setAgentStatus((pageData as any).agent_status ?? null);
+        }
+      } catch {
+        // silently ignore poll errors
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isAgentRunning, pageId]);
+
   // ── Realtime subscriptions ───────────────────────────────────────────────
   useEffect(() => {
     if (loading) return;
 
     const pageChannel = supabaseRealtime
       .channel(`page-${pageId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${pageId}` }, (payload) => {
-        const updatedPage = payload.new as Page;
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'pages'
+      }, (payload) => {
+        const updatedPage = payload.new as any;
+        if (updatedPage.id !== pageId) return;
+
         setPage(prev => prev ? { ...prev, ...updatedPage } : prev);
+        setAgentStatus(updatedPage.agent_status ?? null);
         if (!hasUnsyncedChanges) setEditedCode(updatedPage.html_content);
       })
       .subscribe();
 
     const chatChannel = supabaseRealtime
       .channel(`chat-${pageId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages', filter: `page_id=eq.${pageId}` }, (payload) => {
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'chat_messages', filter: `page_id=eq.${pageId}`
+      }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const newMsg = payload.new as ChatMessage;
           setMessages(prev => prev.find(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
@@ -206,7 +229,9 @@ export default function StudioPage() {
 
     const assetChannel = supabaseRealtime
       .channel(`assets-${pageId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'page_assets', filter: `page_id=eq.${pageId}` }, (payload) => {
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'page_assets', filter: `page_id=eq.${pageId}`
+      }, (payload) => {
         setAssets(prev => prev.map(a => a.id === payload.new.id ? { ...a, ...payload.new as PageAsset } : a));
       })
       .subscribe();
@@ -241,7 +266,11 @@ export default function StudioPage() {
   const removeStagedFile = (index: number) => setStagedFiles(prev => prev.filter((_, i) => i !== index));
   const handleDragOver   = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); };
   const handleDragLeave  = () => setIsDragOver(false);
-  const handleDrop       = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files.length) stageFiles(e.dataTransfer.files); };
+  const handleDrop       = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files.length) stageFiles(e.dataTransfer.files);
+  };
 
   // ── Send message ─────────────────────────────────────────────────────────
   const handleSendMessage = async () => {
@@ -250,6 +279,7 @@ export default function StudioPage() {
 
     setInput('');
     setAgentRunning(true);
+    setAgentStatus('planning'); // optimistic — shows immediately before first DB update
     startSlowTimer();
     setHasEverSentMessage(true);
     if (awaitingClarification) setAwaitingClarification(false);
@@ -257,15 +287,21 @@ export default function StudioPage() {
     if (stagedFiles.length > 0) {
       const filesToUpload = [...stagedFiles];
       setStagedFiles([]);
-      const tempUploads: PendingUpload[] = filesToUpload.map(f => ({ id: `${Date.now()}-${f.name}`, file: f, progress: 0 }));
+      const tempUploads: PendingUpload[] = filesToUpload.map(f => ({
+        id: `${Date.now()}-${f.name}`, file: f, progress: 0
+      }));
       setPendingUploads(prev => [...prev, ...tempUploads]);
       await Promise.all(
         filesToUpload.map((file, i) =>
           uploadAsset(pageId, file, (pct) => {
-            setPendingUploads(prev => prev.map(u => u.id === tempUploads[i].id ? { ...u, progress: pct } : u));
+            setPendingUploads(prev => prev.map(u =>
+              u.id === tempUploads[i].id ? { ...u, progress: pct } : u
+            ));
           }).then(result => {
             if (result.error) {
-              setPendingUploads(prev => prev.map(u => u.id === tempUploads[i].id ? { ...u, error: result.error! } : u));
+              setPendingUploads(prev => prev.map(u =>
+                u.id === tempUploads[i].id ? { ...u, error: result.error! } : u
+              ));
             } else if (result.asset) {
               setAssets(prev => [...prev, result.asset!]);
               setPendingUploads(prev => prev.filter(u => u.id !== tempUploads[i].id));
@@ -385,6 +421,7 @@ export default function StudioPage() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         isAgentRunning={isAgentRunning}
+        agentStatus={agentStatus}
         hasUnsyncedChanges={hasUnsyncedChanges}
         syncing={syncing}
         syncDone={syncDone}
@@ -397,7 +434,6 @@ export default function StudioPage() {
 
       {/* Main layout */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
         <PreviewPane
           viewMode={viewMode}
           htmlContent={page?.html_content ?? ''}
@@ -407,11 +443,12 @@ export default function StudioPage() {
           syncDone={syncDone}
           onCodeChange={setEditedCode}
           onSyncCode={handleSyncCode}
+          pageId={pageId}
+          isPublished={page?.is_published && page?.hosting_status === 'active'}
         />
 
-        {/* Chat pane wrapper */}
+        {/* Chat pane */}
         <div style={{ flex: '0 0 28%', minWidth: '300px', maxWidth: '480px', position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
           {showVersions && (
             <VersionsPanel
               versions={versions}
@@ -427,6 +464,7 @@ export default function StudioPage() {
             pendingUploads={pendingUploads}
             stagedFiles={stagedFiles}
             isAgentRunning={isAgentRunning}
+            agentStatus={agentStatus}
             agentSlowWarning={agentSlowWarning}
             awaitingClarification={awaitingClarification}
             hasEverSentMessage={hasEverSentMessage}
@@ -459,7 +497,9 @@ export default function StudioPage() {
               This will permanently delete the page, all chat history, and all uploaded files. Cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowDeleteModal(false)} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ddd', color: '#777', padding: '0.55rem 1rem', borderRadius: '3px', fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+              <button onClick={() => setShowDeleteModal(false)} disabled={deleting} style={{ background: 'transparent', border: '1px solid #ddd', color: '#777', padding: '0.55rem 1rem', borderRadius: '3px', fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                Cancel
+              </button>
               <button onClick={handleDelete} disabled={deleting} style={{ background: '#c0392b', border: 'none', color: '#fff', padding: '0.55rem 1.1rem', borderRadius: '3px', fontSize: '0.82rem', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 {deleting ? 'Deleting...' : 'Yes, delete'}
               </button>
