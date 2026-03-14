@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { createRazorpayOrder } from '@/lib/razorpay';
 import { verifyRazorpaySignature, fetchPaymentDetails } from '@/lib/razorpay';
+import { detectCountry } from '@/lib/geo';
 
 const TIER_PRICES: Record<string, number> = {
   pro: 5,
@@ -46,8 +47,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Payment configuration error' }, { status: 500 });
       }
 
+      // Detect currency based on user IP — same logic as the token purchase flow
+      const forwardedFor = request.headers.get('x-forwarded-for');
+      const realIp = request.headers.get('x-real-ip');
+      const ip = (forwardedFor?.split(',')[0] || realIp || 'unknown').trim();
+      const country = await detectCountry(ip);
+      const currency = country === 'IN' ? 'INR' : 'USD';
+
       // tokensPerDollar = 1 as a placeholder (subscriptions don't credit tokens)
-      const result = await createRazorpayOrder(amountUSD, user.id, 1, 'USD');
+      const result = await createRazorpayOrder(amountUSD, user.id, 1, currency);
 
       if (!result.success || !result.order) {
         return NextResponse.json({ error: result.error || 'Failed to create order' }, { status: 500 });
