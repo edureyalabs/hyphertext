@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import LiveBuildDemo from "@/app/components/LiveBuildDemo";
 
-const WORDS = ["Imagine it.", "Describe it.", "It's live."];
+const WORDS = ["Vibe code it.", "Publish it.", "Share the link."];
 
 export default function Home() {
   const [wordIdx, setWordIdx] = useState(0);
@@ -176,13 +176,14 @@ export default function Home() {
               justifyContent: "space-between"
             }}>
               <div>
+                {/* Eyebrow */}
                 <div style={{
                   fontFamily: "'DM Mono', monospace",
-                  fontSize: "0.9rem",
+                  fontSize: "0.82rem",
                   color: "var(--accent)",
-                  letterSpacing: "0.08em",
+                  letterSpacing: "0.1em",
                   textTransform: "uppercase",
-                  marginBottom: "1.5rem",
+                  marginBottom: "1.75rem",
                   display: "flex",
                   alignItems: "center",
                   gap: "0.6rem",
@@ -193,53 +194,97 @@ export default function Home() {
                     height: "7px",
                     borderRadius: "50%",
                     background: "var(--accent)",
-                    display: "inline-block"
+                    display: "inline-block",
+                    flexShrink: 0
                   }} />
-                  the new era of web publishing
+                  vibe code · publish · explore
                 </div>
 
+                {/* Main headline */}
                 <h1 style={{
-                  fontSize: "clamp(2.6rem, 3.7vw, 4.4rem)",
+                  fontSize: "clamp(2.8rem, 3.9vw, 4.6rem)",
                   fontWeight: 300,
-                  lineHeight: 1.08,
+                  lineHeight: 1.06,
                   letterSpacing: "-0.04em",
-                  marginBottom: "1rem",
+                  marginBottom: "1.4rem",
                   color: "#0d0d0d"
                 }}>
-                  The fastest way to put <em style={{
+                  Your vibe code,
+                  <br />
+                  <em style={{
                     fontFamily: "'Playfair Display', serif",
                     fontStyle: "italic",
                     fontWeight: 400,
                     color: "#bbb"
                   }}>
-                    anything
-                  </em><br />
-                  on the web.
+                    live
+                  </em>{" "}in seconds.
                 </h1>
 
-                <div style={{ height: "2.75rem", display: "flex", alignItems: "center", marginBottom: "1.25rem" }}>
-                  <span style={{ fontSize: "1.25rem", fontWeight: 300, color: "#555", letterSpacing: "-0.01em" }}>
+                {/* Typewriter */}
+                <div style={{ height: "2.75rem", display: "flex", alignItems: "center", marginBottom: "1.5rem" }}>
+                  <span style={{ fontSize: "1.2rem", fontWeight: 300, color: "#555", letterSpacing: "-0.01em" }}>
                     {displayed}
                     <span className="cursor-blink" />
                   </span>
                 </div>
 
+                {/* Body copy */}
                 <p style={{
                   fontSize: "1.05rem",
-                  color: "#666",
+                  color: "#555",
                   fontWeight: 300,
-                  lineHeight: 1.75,
-                  maxWidth: "380px",
-                  marginBottom: "1.75rem"
+                  lineHeight: 1.8,
+                  maxWidth: "400px",
+                  marginBottom: "0.85rem"
                 }}>
-                  Describe what you want — a mission dashboard, an invitation, a game, a quiz, a micro-app. AI writes the HTML. One click and it's live.
+                  Describe what you want to build. AI writes it.
+                  One tap and it's live at a real URL — no domain to buy,
+                  no server to touch, no deploy pipeline.
                 </p>
 
-                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "2rem" }}>
+                <p style={{
+                  fontSize: "0.95rem",
+                  color: "#888",
+                  fontWeight: 300,
+                  lineHeight: 1.8,
+                  maxWidth: "400px",
+                  marginBottom: "2rem"
+                }}>
+                  Already have HTML? Paste it, host it instantly, iterate with AI.
+                  Then browse the{" "}
+                  <Link href="/explore" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid rgba(200,90,26,0.3)", paddingBottom: "1px", transition: "border-color 0.15s" }}>
+                    Explore feed
+                  </Link>{" "}
+                  to see what others are shipping.
+                </p>
+
+                {/* CTAs */}
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "2.25rem" }}>
                   <Link href="/auth" className="cta-primary">
-                    Start building free
+                    Start vibe coding
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </Link>
+                  <Link href="/explore" className="cta-ghost">
+                    Explore →
+                  </Link>
+                </div>
+
+                {/* Social proof pill */}
+                <div style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  background: "#fff",
+                  border: "1px solid var(--border)",
+                  borderRadius: "100px",
+                  padding: "0.32rem 0.9rem 0.32rem 0.55rem",
+                  marginBottom: "2rem"
+                }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#2a9d5c", flexShrink: 0, animation: "pulse 2s infinite" }} />
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.68rem", color: "#777", letterSpacing: "0.03em" }}>
+                    free to start · your first site, forever hosted
+                  </span>
                 </div>
               </div>
 
@@ -252,9 +297,9 @@ export default function Home() {
                 gap: "0"
               }}>
                 {[
-                  ["instant", "prompt to live page", "var(--accent)"],
-                  ["zero setup", "no server, ever", "var(--accent-blue)"],
-                  ["∞", "things you can build", "var(--accent-green)"]
+                  ["prompt → live", "no setup, ever", "var(--accent)"],
+                  ["import HTML", "paste & host instantly", "var(--accent-blue)"],
+                  ["explore feed", "see what's being built", "var(--accent-green)"]
                 ].map(([val, sub, color], i) => (
                   <div key={val} style={{
                     flex: 1,
@@ -264,18 +309,19 @@ export default function Home() {
                   }}>
                     <div style={{
                       fontFamily: "'DM Mono', monospace",
-                      fontSize: "1.35rem",
+                      fontSize: "0.9rem",
                       fontWeight: 500,
                       color: color as string,
-                      letterSpacing: "-0.02em"
+                      letterSpacing: "-0.01em",
+                      lineHeight: 1.3,
+                      marginBottom: "0.3rem"
                     }}>
                       {val}
                     </div>
                     <div style={{
                       fontFamily: "'DM Mono', monospace",
-                      fontSize: "0.72rem",
-                      color: "#777",
-                      marginTop: "0.3rem",
+                      fontSize: "0.7rem",
+                      color: "#888",
                       letterSpacing: "0.02em",
                       fontWeight: 400,
                       lineHeight: 1.4
@@ -287,7 +333,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right */}
+            {/* Right — demo, untouched */}
             <div className="hero-right" style={{
               padding: "2rem 1.5rem 2rem 2rem",
               display: "flex",
