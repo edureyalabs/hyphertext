@@ -1,6 +1,6 @@
 // app/studio/[pageId]/ChatPanel.tsx
 'use client';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -114,7 +114,10 @@ export default function ChatPanel({
   const statusLabel = agentStatus ? (STATUS_LABELS[agentStatus] ?? agentStatus) : null;
 
   // Filter out thinking messages — we no longer render them in chat
-  const visibleMessages = messages.filter(m => m.message_type !== 'thinking');
+  const visibleMessages = useMemo(
+  () => messages.filter(m => m.message_type !== 'thinking'),
+  [messages]
+  );
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
