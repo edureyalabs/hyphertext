@@ -301,11 +301,7 @@ export default function UsageTab({ userId }: UsageTabProps) {
                             <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#999' }}>
                               {fmtDate(txn.created_at)}
                             </p>
-                            {shortModel(txn.model_id) && (
-                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#888', background: '#f5f3ef', borderRadius: '3px', padding: '0.05rem 0.35rem' }}>
-                                {shortModel(txn.model_id)}
-                              </span>
-                            )}
+
                             {txn.transaction_type === 'debit' && (txn.input_tokens || txn.output_tokens) ? (
                               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#aaa' }}>
                                 {fmtTokens((txn.input_tokens ?? 0) + (txn.output_tokens ?? 0))} tokens
