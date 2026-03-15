@@ -275,25 +275,11 @@ export default function ChatPanel({
 
             {/* Empty state */}
             {visibleMessages.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#ccc', gap: '0.75rem' }}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ opacity: 0.3 }}>
-                  <rect x="2" y="5" width="28" height="22" rx="3" stroke="#999" strokeWidth="1.5"/>
-                  <path d="M2 11h28" stroke="#999" strokeWidth="1.5"/>
-                  <circle cx="6.5" cy="8" r="1.2" fill="#999"/>
-                  <circle cx="10.5" cy="8" r="1.2" fill="#999"/>
-                  <circle cx="14.5" cy="8" r="1.2" fill="#999"/>
-                  <path d="M8 18h16M8 22h10" stroke="#ccc" strokeWidth="1.2" strokeLinecap="round"/>
-                </svg>
-                <div>
-                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', marginBottom: '0.5rem', color: '#bbb' }}>
-                    {pageSource === 'import' ? 'page imported · describe what to change' : 'describe your page to get started'}
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    {['attach images, logos or docs', 'ask for any type of page', 'request edits at any time'].map(hint => (
-                      <p key={hint} style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#ddd', margin: 0 }}>· {hint}</p>
-                    ))}
-                  </div>
-                </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '0.75rem' }}>
+                <Image src="/loader.png" alt="Start prompting" width={48} height={48} style={{ objectFit: 'contain', opacity: 0.85 }} />
+                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#8a8a8a', margin: 0 }}>
+                  Start Prompting...
+                </p>
               </div>
             )}
 
@@ -372,7 +358,7 @@ export default function ChatPanel({
               </div>
             )}
 
-            <div style={{ background: '#f8f7f4', border: '1px solid #e8e6e1', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', transition: 'border-color 0.15s' }}>
+            <div style={{ background: '#f8f7f4', border: '1px solid #f1d99c', borderRadius: '8px', padding: '0.65rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', transition: 'border-color 0.15s' }}>
               <textarea
                 ref={textareaRef}
                 className="chat-input"
@@ -381,7 +367,7 @@ export default function ChatPanel({
                     ? (statusLabel ?? 'generating...')
                     : awaitingClarification
                     ? 'type your answer...'
-                    : 'describe a change or a new page...'
+                    : 'describe what you wnat to build...'
                 }
                 value={input}
                 onChange={handleTextareaChange}
@@ -401,7 +387,7 @@ export default function ChatPanel({
               </div>
             </div>
 
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#ddd', marginTop: '0.4rem', textAlign: 'center' }}>
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#b6a9a9', marginTop: '0.4rem', textAlign: 'center' }}>
               enter to send · shift+enter for newline
             </p>
           </div>
